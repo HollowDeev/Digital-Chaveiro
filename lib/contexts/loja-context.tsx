@@ -39,11 +39,11 @@ export function LojaProvider({ children }: { children: ReactNode }) {
       }
 
       // Buscar lojas onde o usuário é dono
-      const { data: lojasOwner } = await supabase.from("lojas").select("*").eq("owner_id", user.id)
+      const { data: lojasOwner } = await supabase.from("lojas").select("*").eq("dono_id", user.id)
 
       // Buscar lojas onde o usuário tem acesso
       const { data: acessos } = await supabase
-        .from("loja_usuarios")
+        .from("lojas_usuarios")
         .select("loja_id, lojas(*)")
         .eq("usuario_id", user.id)
 

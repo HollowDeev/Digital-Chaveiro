@@ -36,18 +36,12 @@ alter table public.lojas enable row level security;
 alter table public.lojas_usuarios enable row level security;
 alter table public.lojas_credenciais_funcionarios enable row level security;
 
--- RLS Policies para lojas
-create policy "Usuários podem ver lojas que têm acesso"
+-- RLS Policies para lojas - Simplificadas para evitar recursão infinita
+create policy "Usuários podem ver suas lojas"
   on public.lojas for select
-  using (
-    auth.uid() = dono_id or
-    exists (
-      select 1 from public.lojas_usuarios
-      where loja_id = lojas.id and usuario_id = auth.uid()
-    )
-  );
+  using (auth.uid() = dono_id);
 
-create policy "Donos podem criar lojas"
+create policy "Usuários autenticados podem criar lojas"
   on public.lojas for insert
   with check (auth.uid() = dono_id);
 
@@ -62,68 +56,32 @@ create policy "Donos podem deletar suas lojas"
 -- RLS Policies para lojas_usuarios
 create policy "Usuários podem ver suas próprias permissões"
   on public.lojas_usuarios for select
-  using (
-    usuario_id = auth.uid() or
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  using (usuario_id = auth.uid());
 
-create policy "Donos podem adicionar usuários às suas lojas"
+create policy "Donos podem gerenciar usuários nas suas lojas"
   on public.lojas_usuarios for insert
-  with check (
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  with check (auth.uid() = (select dono_id from public.lojas where id = loja_id));
 
 create policy "Donos podem atualizar permissões nas suas lojas"
   on public.lojas_usuarios for update
-  using (
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  using (auth.uid() = (select dono_id from public.lojas where id = loja_id));
 
 create policy "Donos podem remover usuários das suas lojas"
   on public.lojas_usuarios for delete
-  using (
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  using (auth.uid() = (select dono_id from public.lojas where id = loja_id));
 
 -- RLS Policies para credenciais de funcionários
-create policy "Donos podem ver credenciais das suas lojas"
+create policy "Donos podem gerenciar credenciais das suas lojas"
   on public.lojas_credenciais_funcionarios for select
-  using (
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  using (auth.uid() = (select dono_id from public.lojas where id = loja_id));
 
 create policy "Donos podem criar credenciais para suas lojas"
   on public.lojas_credenciais_funcionarios for insert
-  with check (
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  with check (auth.uid() = (select dono_id from public.lojas where id = loja_id));
 
 create policy "Donos podem atualizar credenciais das suas lojas"
   on public.lojas_credenciais_funcionarios for update
-  using (
-    exists (
-      select 1 from public.lojas
-      where id = loja_id and dono_id = auth.uid()
-    )
-  );
+  using (auth.uid() = (select dono_id from public.lojas where id = loja_id));
 
 -- Trigger para atualizar updated_at
 create or replace function public.handle_updated_at()

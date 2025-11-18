@@ -56,7 +56,7 @@ export default function CriarLojaPage() {
           cnpj: cnpj || null,
           endereco: endereco || null,
           telefone: telefone || null,
-          owner_id: user.id,
+          dono_id: user.id,
         })
         .select()
         .single()
@@ -79,48 +79,23 @@ export default function CriarLojaPage() {
     setErro("")
 
     try {
-      // Criar usuário funcionário no Supabase Auth
-      const { data: novoUsuario, error: authError } = await supabase.auth.admin.createUser({
-        email: emailFuncionario,
-        password: senhaFuncionario,
-        email_confirm: true,
-      })
-
-      if (authError) {
-        // Tentar criar via signUp se admin não funcionar
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: emailFuncionario,
-          password: senhaFuncionario,
-        })
-
-        if (signUpError) throw signUpError
-
-        if (signUpData.user) {
-          // Adicionar acesso à loja
-          const { error: acessoError } = await supabase.from("loja_usuarios").insert({
-            loja_id: lojaId,
-            usuario_id: signUpData.user.id,
-            nivel_acesso: "funcionario",
-          })
-
-          if (acessoError) throw acessoError
-        }
-      } else if (novoUsuario.user) {
-        // Adicionar acesso à loja
-        const { error: acessoError } = await supabase.from("loja_usuarios").insert({
+      // Apenas salvar as credenciais do funcionário na tabela
+      const { error: credenciaisError } = await supabase
+        .from("lojas_credenciais_funcionarios")
+        .insert({
           loja_id: lojaId,
-          usuario_id: novoUsuario.user.id,
-          nivel_acesso: "funcionario",
+          email: emailFuncionario,
+          password_hash: senhaFuncionario, // TODO: Hash this properly in production
         })
 
-        if (acessoError) throw acessoError
-      }
+      if (credenciaisError) throw credenciaisError
 
+      setErro("")
       router.push("/")
       router.refresh()
     } catch (error: any) {
-      console.error("[v0] Erro ao criar acesso funcionário:", error)
-      setErro(error.message || "Erro ao criar acesso. Tente novamente.")
+      console.error("[v0] Erro ao criar credenciais de funcionário:", error)
+      setErro(error.message || "Erro ao criar credenciais. Tente novamente.")
     } finally {
       setLoading(false)
     }

@@ -14,9 +14,9 @@ export default async function Home() {
   }
 
   // Se está autenticado, verifica se tem loja
-  const { data: lojasOwner } = await supabase.from("lojas").select("*").eq("owner_id", user.id).limit(1)
+  const { data: lojasOwner } = await supabase.from("lojas").select("*").eq("dono_id", user.id).limit(1)
 
-  const { data: acessos } = await supabase.from("loja_usuarios").select("loja_id").eq("usuario_id", user.id).limit(1)
+  const { data: acessos } = await supabase.from("lojas_usuarios").select("loja_id").eq("usuario_id", user.id).limit(1)
 
   const temLoja = (lojasOwner && lojasOwner.length > 0) || (acessos && acessos.length > 0)
 
