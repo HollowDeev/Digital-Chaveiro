@@ -15,7 +15,7 @@ import {
   Receipt,
   Sparkles,
 } from "lucide-react"
-import { ThemeToggle } from "./theme-toggle"
+import ThemeToggle from "./theme-toggle"
 
 const navItems = [
   { href: "/pdv", label: "PDV", icon: Receipt },

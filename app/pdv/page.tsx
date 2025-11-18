@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
 import { ShoppingCart, Wrench, Plus, Trash2, DollarSign, Clock, Calendar, AlertTriangle, Users } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
+import ThemeToggle from "@/components/theme-toggle"
 
 export default function PDVPage() {
   const {
@@ -128,54 +129,44 @@ export default function PDVPage() {
       alert("Defina a data de vencimento!")
       return
     }
-
     const cliente = clientes.find((c) => c.id === vendaAtual.clienteId)
     if (!cliente) return
-
-    const valorParcela = total / numeroParcelas
-    const parcelas = []
-
-    for (let i = 0; i < numeroParcelas; i++) {
-      const dataVenc = new Date(dataVencimento)
-      dataVenc.setMonth(dataVenc.getMonth() + i)
-
-      parcelas.push({
-        id: `${Date.now()}-${i}`,
+    const valorParcela = total / numeroParcelas;
+    const now = Date.now();
+    const parcelas = Array.from({ length: numeroParcelas }, (_, i) => {
+      const dataVenc = new Date(dataVencimento);
+      dataVenc.setMonth(dataVenc.getMonth() + i);
+      return {
+        id: `${now}-${i}`,
         numero: i + 1,
         valor: valorParcela,
         dataVencimento: dataVenc.toISOString(),
         status: "pendente" as const,
-      })
-    }
-
+      };
+    });
     const vendaPrazo = {
-      id: `VP${Date.now()}`,
-      data: new Date().toISOString(),
-      clienteId: cliente.id,
-      clienteNome: cliente.nome,
-      itens: vendaAtual.itens,
-      valorTotal: total,
-      valorPago: 0,
-      valorRestante: total,
-      numeroParcelas,
-      parcelas,
-      status: "pendente" as const,
-    }
-
-    adicionarVendaPrazo(vendaPrazo)
-
-    // Adicionar primeira parcela como conta a receber
+  id: `VP${now}`,
+  vendaId: `VP${now}`,
+  clienteId: cliente.id,
+  clienteNome: cliente.nome,
+  valorTotal: total,
+  valorPago: 0,
+  valorRestante: total,
+  dataVenda: new Date().toISOString(),
+  dataVencimento: parcelas[0].dataVencimento,
+  status: "pendente" as const,
+  parcelas,
+    };
+    adicionarVendaPrazo(vendaPrazo);
     adicionarContaReceber({
-      id: `CR${Date.now()}`,
-      descricao: `Venda a Prazo - ${cliente.nome} (Parcela 1/${numeroParcelas})`,
-      valor: valorParcela,
-      dataVencimento: parcelas[0].dataVencimento,
-      categoria: "venda",
-      status: "pendente",
-      clienteId: cliente.id,
-      clienteNome: cliente.nome,
-    })
-
+  id: `CR${now}`,
+  descricao: `Venda a Prazo - ${cliente.nome} (Parcela 1/${numeroParcelas})`,
+  valor: valorParcela,
+  dataVencimento: parcelas[0].dataVencimento,
+  status: "pendente",
+  clienteId: cliente.id,
+  clienteNome: cliente.nome,
+    });
     limparVenda()
     setDialogPagamento(false)
     setVendaAPrazo(false)
@@ -198,7 +189,6 @@ export default function PDVPage() {
   const handleRegistrarPerda = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-
     const produtoId = formData.get("produto") as string
     const produto = produtos.find((p) => p.id === produtoId)
     const quantidade = Number.parseInt(formData.get("quantidade") as string)
@@ -206,11 +196,10 @@ export default function PDVPage() {
     const funcionario = funcionarios.find((f) => f.id === funcionarioId)
     const categoriaId = formData.get("categoria") as string
     const categoria = categoriasPerdas.find((c) => c.id === categoriaId)
-
     if (!produto || !funcionario || !categoria) return
-
+    const now = Date.now();
     const novaPerda = {
-      id: `P${Date.now()}`,
+      id: `P${now}`,
       produtoId: produto.id,
       produtoNome: produto.nome,
       quantidade,
@@ -223,17 +212,21 @@ export default function PDVPage() {
       motivo: categoria.nome,
       data: new Date().toISOString(),
       observacoes: formData.get("observacoes") as string,
-    }
-
+    };
     adicionarPerda(novaPerda)
     setOpenPerda(false)
   }
 
-  const hoje = new Date().toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  })
+  const [hoje, setHoje] = useState("");
+  useEffect(() => {
+    setHoje(new Date().toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }));
+  }, []);
+
+  const hojeFormatada = new Date().toLocaleDateString("pt-BR")
 
   const dataMinima = new Date().toISOString().split("T")[0]
 
@@ -358,14 +351,14 @@ export default function PDVPage() {
                     <SelectValue placeholder="Selecione o funcionário (obrigatório)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {funcionarios
-                      .filter((f) => f.ativo)
-                      .map((func) => (
-                        <SelectItem key={func.id} value={func.id}>
-                          {func.nome} - {func.cargo}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
+                      {funcionarios
+                        .filter((f) => f.ativo)
+                        .map((func) => (
+                          <SelectItem key={func.id} value={func.id}>
+                            {func.nome} - {func.cargo}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
                 </Select>
                 {!vendaAtual.funcionarioId && (
                   <p className="mt-2 text-xs text-destructive">Selecione um funcionário antes de finalizar a venda</p>
@@ -583,7 +576,7 @@ export default function PDVPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="truncate text-sm font-medium lg:text-base">{item.nome}</span>
-                            <span className="flex-shrink-0 rounded bg-muted px-2 py-0.5 text-xs">
+                            <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs">
                               {item.tipo === "produto" ? "Produto" : "Serviço"}
                             </span>
                           </div>
@@ -663,7 +656,7 @@ export default function PDVPage() {
               <div className="space-y-2 lg:space-y-1">
                 <p className="text-xs text-muted-foreground lg:text-sm">Subtotal: R$ {subtotal.toFixed(2)}</p>
                 <div className="flex items-center gap-2 lg:gap-3">
-                  <Label htmlFor="desconto" className="flex-shrink-0 text-xs lg:text-sm">
+                  <Label htmlFor="desconto" className="shrink-0 text-xs lg:text-sm">
                     Desconto:
                   </Label>
                   <Input

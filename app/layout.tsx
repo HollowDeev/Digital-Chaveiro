@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
+import Providers from "./providers"
+import ThemeToggle from "@/components/theme-toggle"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -37,9 +39,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`font-sans antialiased`}>
-        {children}
-        <Analytics />
+      <body suppressHydrationWarning className={`font-sans antialiased`}>
+        <Providers>
+          {children}
+          <Analytics />
+          <ThemeToggle />
+        </Providers>
       </body>
     </html>
   )

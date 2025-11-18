@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Store, Building2, Phone, MapPin, Loader2, Mail, Lock } from "lucide-react"
+import ThemeToggle from "@/components/theme-toggle"
 
 export default function CriarLojaPage() {
   const [etapa, setEtapa] = useState<"loja" | "funcionario">("loja")
