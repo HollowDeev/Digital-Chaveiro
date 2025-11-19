@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+Dimport { NextResponse } from "next/server"
 import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { createClient } from "@supabase/supabase-js"
 
