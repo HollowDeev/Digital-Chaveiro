@@ -94,6 +94,10 @@ type Store = {
   limparVenda: () => void
   finalizarVenda: (formaPagamento: Venda["formaPagamento"]) => void
 
+  // Caixa Actions
+  abrirCaixa: (funcionarioId: string, valorAbertura: number) => void
+  fecharCaixa: (funcionarioId: string) => void
+
   // Resumo
   getResumoVendas: () => ResumoVendas
   getHistoricoFuncionario: (funcionarioId: string) => any // Função para obter histórico do funcionário
@@ -439,6 +443,11 @@ export const useStore = create<Store>((set, get) => ({
     const receitaTotal = vendasHoje.reduce((acc, v) => acc + v.total, 0)
     const ticketMedio = totalVendas > 0 ? receitaTotal / totalVendas : 0
 
+    // Contar serviços vendidos
+    const totalServicos = vendasHoje.reduce((acc, v) => {
+      return acc + v.itens.filter(item => item.tipo === 'servico').length
+    }, 0)
+
     // Agrupar por forma de pagamento
     const porFormaPagamento: { [key: string]: number } = {}
     vendasHoje.forEach((venda) => {
@@ -448,10 +457,52 @@ export const useStore = create<Store>((set, get) => ({
 
     return {
       totalVendas,
-      receitaTotal,
-      ticketMedio,
+      totalServicos,
+      totalReceita: receitaTotal,
+      mediaTransacao: ticketMedio,
       porFormaPagamento,
     }
+  },
+
+  abrirCaixa: (funcionarioId: string, valorAbertura: number) => {
+    const { funcionarios } = get()
+    const funcionario = funcionarios.find(f => f.id === funcionarioId)
+    if (!funcionario) return
+
+    const novoCaixa: Caixa = {
+      id: `CX${Date.now()}`,
+      dataAbertura: new Date().toISOString(),
+      funcionarioAberturaId: funcionario.id,
+      funcionarioAberturaNome: funcionario.nome,
+      valorAbertura,
+      status: "aberto",
+      movimentacoes: [],
+    }
+
+    set({ caixaAtual: novoCaixa })
+  },
+
+  fecharCaixa: (funcionarioId: string) => {
+    const { caixaAtual, funcionarios } = get()
+    if (!caixaAtual || caixaAtual.status !== "aberto") return
+
+    const funcionario = funcionarios.find(f => f.id === funcionarioId)
+    if (!funcionario) return
+
+    const valorFechamento = caixaAtual.movimentacoes.reduce((acc, m) => {
+      return acc + (m.tipo === "entrada" ? m.valor : -m.valor)
+    }, caixaAtual.valorAbertura)
+
+    set({
+      caixaAtual: {
+        ...caixaAtual,
+        status: "fechado",
+        dataFechamento: new Date().toISOString(),
+        funcionarioFechamentoId: funcionario.id,
+        funcionarioFechamentoNome: funcionario.nome,
+        valorFechamento,
+      }
+    })
   },
 }))
 

@@ -1,11 +1,3 @@
-  const [modalCaixa, setModalCaixa] = useState(false)
-  useEffect(() => {
-    if (caixaAtual?.status !== "aberto") {
-      setModalCaixa(true)
-    } else {
-      setModalCaixa(false)
-    }
-  }, [caixaAtual])
 "use client"
 
 import type React from "react"
@@ -97,6 +89,15 @@ export default function PDVPage() {
   //   setHeaderHoverTimeout(timeout)
   // }
 
+  const [modalCaixa, setModalCaixa] = useState(false)
+  useEffect(() => {
+    if (caixaAtual?.status !== "aberto") {
+      setModalCaixa(true)
+    } else {
+      setModalCaixa(false)
+    }
+  }, [caixaAtual])
+
   const [produtoSelecionado, setProdutoSelecionado] = useState("")
   const [servicoSelecionado, setServicoSelecionado] = useState("")
   const [quantidade, setQuantidade] = useState(1)
@@ -156,28 +157,12 @@ export default function PDVPage() {
     if (vendaAtual.itens.length === 0) return
     if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
       alert("Selecione um cliente para venda a prazo!")
-      return (
-        <div className="flex min-h-screen bg-background relative">
-          <Sidebar />
-          <main className={`flex-1 lg:ml-64 ${modalCaixa ? 'blur-sm pointer-events-none select-none' : ''}`}>
-            {/* ...existing code... */}
-          </main>
-          {modalCaixa && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-              <div className="bg-background rounded-xl shadow-xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
-                <h2 className="text-xl font-bold text-destructive">Caixa fechado</h2>
-                <p className="text-sm text-muted-foreground text-center">Abra o caixa para registrar vendas ou serviços.</p>
-                <Button
-                  className="bg-accent text-accent-foreground hover:bg-accent/90 w-full"
-                  onClick={() => {/* lógica para abrir caixa */}}
-                >
-                  Abrir Caixa
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )
+      return
+    }
+    
+    const cliente = clientes.find((c) => c.id === vendaAtual.clienteId)
+    if (!cliente) return
+
     const valorParcela = total / numeroParcelas;
     const now = Date.now();
     const parcelas = Array.from({ length: numeroParcelas }, (_, i) => {

@@ -1,15 +1,45 @@
 "use client"
 
+import { useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useStore } from "@/lib/store"
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react"
 
 export default function CaixaPage() {
-  const { caixaAtual } = useStore()
+  const { caixaAtual, funcionarios, abrirCaixa, fecharCaixa } = useStore()
+  const [dialogAbrir, setDialogAbrir] = useState(false)
+  const [dialogFechar, setDialogFechar] = useState(false)
+  const [funcionarioId, setFuncionarioId] = useState("")
+  const [valorAbertura, setValorAbertura] = useState(0)
+
+  const handleAbrirCaixa = () => {
+    if (!funcionarioId) {
+      alert("Selecione um funcionário")
+      return
+    }
+    abrirCaixa(funcionarioId, valorAbertura)
+    setDialogAbrir(false)
+    setFuncionarioId("")
+    setValorAbertura(0)
+  }
+
+  const handleFecharCaixa = () => {
+    if (!funcionarioId) {
+      alert("Selecione um funcionário")
+      return
+    }
+    fecharCaixa(funcionarioId)
+    setDialogFechar(false)
+    setFuncionarioId("")
+  }
 
   const saldoCaixa =
     caixaAtual?.movimentacoes.reduce((acc, m) => {
@@ -33,9 +63,92 @@ export default function CaixaPage() {
           icon={<Wallet className="h-5 w-5 lg:h-6 lg:w-6" />}
           action={
             caixaAtual?.status === "aberto" ? (
-              <Button variant="destructive">Fechar Caixa</Button>
+              <Dialog open={dialogFechar} onOpenChange={setDialogFechar}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive">Fechar Caixa</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Fechar Caixa</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Funcionário Responsável *</Label>
+                      <Select value={funcionarioId} onValueChange={setFuncionarioId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o funcionário" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {funcionarios.filter(f => f.ativo).map((func) => (
+                            <SelectItem key={func.id} value={func.id}>
+                              {func.nome} - {func.cargo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="rounded-lg bg-muted p-4">
+                      <p className="text-sm text-muted-foreground">Saldo Final do Caixa</p>
+                      <p className="text-2xl font-bold">R$ {((caixaAtual?.valorAbertura || 0) + saldoCaixa).toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDialogFechar(false)}>
+                      Cancelar
+                    </Button>
+                    <Button variant="destructive" onClick={handleFecharCaixa}>
+                      Confirmar Fechamento
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             ) : (
-              <Button className="bg-accent text-accent-foreground hover:bg-accent/90">Abrir Caixa</Button>
+              <Dialog open={dialogAbrir} onOpenChange={setDialogAbrir}>
+                <DialogTrigger asChild>
+                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90">Abrir Caixa</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Abrir Caixa</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Funcionário Responsável *</Label>
+                      <Select value={funcionarioId} onValueChange={setFuncionarioId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o funcionário" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {funcionarios.filter(f => f.ativo).map((func) => (
+                            <SelectItem key={func.id} value={func.id}>
+                              {func.nome} - {func.cargo}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Valor de Abertura (R$)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={valorAbertura}
+                        onChange={(e) => setValorAbertura(Number.parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDialogAbrir(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleAbrirCaixa}>
+                      Confirmar Abertura
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )
           }
         />

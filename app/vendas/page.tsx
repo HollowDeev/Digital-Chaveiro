@@ -10,11 +10,14 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { useVendas } from "@/lib/hooks/useLojaData"
 import { ShoppingCart, Search, Calendar } from "lucide-react"
+import { useStore } from "@/lib/store"
 
 export default function VendasPage() {
   const [lojaId, setLojaId] = useState<string | undefined>()
   const { vendas } = useVendas(lojaId)
   const [busca, setBusca] = useState("")
+  const { caixaAtual } = useStore()
+  const [modalCaixa, setModalCaixa] = useState(false)
 
   // Buscar loja selecionada do usuário
   useEffect(() => {
@@ -37,6 +40,14 @@ export default function VendasPage() {
     fetchLojaDoUsuario()
   }, [])
 
+  useEffect(() => {
+    if (caixaAtual?.status !== "aberto") {
+      setModalCaixa(true)
+    } else {
+      setModalCaixa(false)
+    }
+  }, [caixaAtual])
+
   const vendasFiltradas = vendas.filter(
     (v) =>
       v.id.includes(busca) ||
@@ -49,10 +60,9 @@ export default function VendasPage() {
   const ticketMedio = totalVendas > 0 ? receitaTotal / totalVendas : 0
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background relative">
       <Sidebar />
-
-      <main className="flex-1 ml-0 lg:ml-64">
+      <main className={`flex-1 ml-0 lg:ml-64 ${modalCaixa ? 'blur-sm pointer-events-none select-none' : ''}`}>
         <PageHeader
           title="Histórico de Vendas"
           subtitle="Todas as transações realizadas"
@@ -205,6 +215,21 @@ export default function VendasPage() {
           </Card>
         </div>
       </main>
+
+      {modalCaixa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-background rounded-xl shadow-xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
+            <h2 className="text-xl font-bold text-destructive">Caixa fechado</h2>
+            <p className="text-sm text-muted-foreground text-center">Abra o caixa para registrar vendas ou serviços.</p>
+            <Button
+              className="bg-accent text-accent-foreground hover:bg-accent/90 w-full"
+              onClick={() => {/* lógica para abrir caixa */}}
+            >
+              Abrir Caixa
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
