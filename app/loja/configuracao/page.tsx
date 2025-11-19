@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Store } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Store, Eye, EyeOff, Copy, Trash2, Plus, CheckCircle2, Clock, Code } from "lucide-react"
 
 export default function LojaConfiguracaoPage() {
   const supabase = createClient()
@@ -23,6 +24,12 @@ export default function LojaConfiguracaoPage() {
   const [credenciais, setCredenciais] = useState<any[]>([])
   const [credEmail, setCredEmail] = useState("")
   const [credSenha, setCredSenha] = useState("")
+  const [credSenhaConfirm, setCredSenhaConfirm] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
+  const [codigosDialogOpen, setCodigosDialogOpen] = useState(false)
+  const [codigos, setCodigos] = useState<any[]>([])
+  const [novoCodigoHoras, setNovoCodigoHoras] = useState(24)
 
   useEffect(() => {
     fetchStores()
@@ -54,6 +61,7 @@ export default function LojaConfiguracaoPage() {
     setEmail(s.email || "")
     fetchUsuarios(s.id)
     fetchCredenciais(s.id)
+    fetchCodigos(s.id)
   }
 
   async function save() {
@@ -87,14 +95,31 @@ export default function LojaConfiguracaoPage() {
     setLoading(true)
     setMensagem("")
     try {
-      const res = await fetch('/api/lojas/generate-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lojaId: selected.id, hours: 24 }) })
+      const res = await fetch('/api/lojas/generate-code', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ lojaId: selected.id, hours: novoCodigoHoras }) 
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.message || 'Erro')
-      setMensagem(`Código: ${json.code} (expira: ${new Date(json.expires_at).toLocaleString()})`)
+      setMensagem('✓ Código gerado com sucesso!')
+      setNovoCodigoHoras(24)
+      setTimeout(() => setMensagem(''), 3000)
+      await fetchCodigos(selected.id)
     } catch (err: any) {
-      setMensagem(err.message || 'Erro')
+      setMensagem('✗ ' + (err.message || 'Erro ao gerar código'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchCodigos(lojaId: string) {
+    try {
+      const { data } = await supabase.from('loja_access_codes').select('*').eq('loja_id', lojaId).order('created_at', { ascending: false })
+      setCodigos(data || [])
+    } catch (err) {
+      console.error('Erro fetch códigos', err)
+      setCodigos([])
     }
   }
 
@@ -154,6 +179,14 @@ export default function LojaConfiguracaoPage() {
       setMensagem('Email e senha são obrigatórios')
       return
     }
+    if (credSenha !== credSenhaConfirm) {
+      setMensagem('✗ As senhas não correspondem')
+      return
+    }
+    if (credSenha.length < 6) {
+      setMensagem('✗ Senha deve ter no mínimo 6 caracteres')
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch('/api/lojas/create-employee', {
@@ -163,27 +196,40 @@ export default function LojaConfiguracaoPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json?.message || 'Erro ao criar credencial')
-      setMensagem('Credencial criada')
+      setMensagem('✓ Credencial criada com sucesso!')
       setCredEmail('')
       setCredSenha('')
+      setCredSenhaConfirm('')
+      setTimeout(() => setMensagem(''), 3000)
       fetchCredenciais(selected.id)
     } catch (err: any) {
-      setMensagem(err.message || 'Erro ao criar credencial')
+      setMensagem('✗ ' + (err.message || 'Erro ao criar credencial'))
     } finally {
       setLoading(false)
     }
   }
 
-  async function removerCredencial(id: string) {
-    if (!selected) return
+  async function removerCredencial(credentialId: string) {
+    if (!window.confirm('Tem certeza que deseja remover este funcionário? Ele não poderá mais acessar o sistema.')) {
+      return
+    }
+
     setLoading(true)
     try {
-      const { error } = await supabase.from('lojas_credenciais_funcionarios').delete().eq('id', id)
-      if (error) throw error
-      setMensagem('Credencial removida')
-      fetchCredenciais(selected.id)
+      const res = await fetch('/api/lojas/remove-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.message || 'Erro ao remover funcionário')
+      setMensagem('✓ Funcionário removido com sucesso!')
+      setTimeout(() => setMensagem(''), 3000)
+      if (selected) {
+        fetchCredenciais(selected.id)
+      }
     } catch (err: any) {
-      setMensagem(err.message || 'Erro ao remover credencial')
+      setMensagem('✗ ' + (err.message || 'Erro ao remover funcionário'))
     } finally {
       setLoading(false)
     }
@@ -197,114 +243,366 @@ export default function LojaConfiguracaoPage() {
         <PageHeader title="Configurações da Loja" subtitle="Gerencie suas lojas, usuários e credenciais" icon={<Store className="h-5 w-5 lg:h-6 lg:w-6" />} />
 
         <div className="space-y-6 p-4 lg:space-y-8 lg:p-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="p-0">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Lista de Lojas */}
+            <Card className="lg:col-span-1 h-fit">
               <CardHeader>
-                <CardTitle>Suas lojas</CardTitle>
+                <CardTitle className="text-lg">Suas Lojas</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {stores.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma loja encontrada</p>}
                   {stores.map((s) => (
-                    <button key={s.id} onClick={() => selectStore(s)} className={`w-full text-left p-3 border rounded-lg transition hover:shadow ${selected?.id === s.id ? 'bg-muted/30 ring-1 ring-primary/20' : ''}`}>
-                      <div className="font-medium">{s.nome}</div>
-                      <div className="text-xs text-muted-foreground">{s.cnpj || s.telefone || ''}</div>
+                    <button 
+                      key={s.id} 
+                      onClick={() => selectStore(s)} 
+                      className={`w-full text-left p-3 border rounded-lg transition ${ 
+                        selected?.id === s.id 
+                          ? 'bg-primary/10 border-primary ring-1 ring-primary' 
+                          : 'hover:bg-muted/50 hover:border-muted-foreground/30'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm">{s.nome}</div>
+                      <div className="text-xs text-muted-foreground mt-1">{s.cnpj || s.telefone || 'Sem dados'}</div>
                     </button>
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            <div className="md:col-span-2 space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Dados da loja</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {selected ? (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div>
-                        <Label htmlFor="nome">Nome</Label>
-                        <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} />
-                      </div>
-                      <div>
-                        <Label htmlFor="telefone">Telefone</Label>
-                        <Input id="telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                      </div>
-                      <div className="md:col-span-2 flex items-center gap-3">
-                        <Button onClick={save} disabled={loading}>Salvar</Button>
-                        <Button variant="ghost" onClick={gerarCodigo} disabled={loading}>Gerar Código de Acesso</Button>
-                        {mensagem && <div className="text-sm text-muted-foreground">{mensagem}</div>}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Selecione uma loja para editar</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {selected && (
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Painel Principal */}
+            <div className="lg:col-span-3 space-y-6">
+              {selected ? (
+                <>
+                  {/* Dados da Loja */}
                   <Card>
                     <CardHeader>
-                      <CardTitle>Usuários com acesso</CardTitle>
+                      <CardTitle className="text-lg">Dados da Loja</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      {usuarios.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário encontrado</p>}
-                      <div className="space-y-2 mt-2">
-                        {usuarios.map((u) => (
-                          <div key={u.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border">
-                            <div className="flex-1 min-w-0">
-                              <div className="truncate font-medium">{u.usuario_id}</div>
-                              <div className="text-xs text-muted-foreground">{u.nivel_acesso}</div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <select value={u.nivel_acesso} onChange={(e) => alterarNivel(u.id, e.target.value)} className="px-2 py-1 border rounded">
-                                <option value="dono">Dono</option>
-                                <option value="gerente">Gerente</option>
-                                <option value="funcionario">Funcionário</option>
-                              </select>
-                              <Button variant="destructive" size="sm" onClick={() => removeUsuario(u.id)}>Remover</Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Credenciais de Funcionários</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {credenciais.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma credencial</p>}
-                      <div className="space-y-2 mt-2">
-                        {credenciais.map((c) => (
-                          <div key={c.id} className="flex items-center justify-between gap-2 p-2 rounded-lg border">
-                            <div className="text-sm">{c.email}</div>
-                            <div>
-                              <Button variant="destructive" size="sm" onClick={() => removerCredencial(c.id)}>Remover</Button>
-                            </div>
-                          </div>
-                        ))}
-
-                        <div className="pt-2">
-                          <Label htmlFor="credEmail">Email</Label>
-                          <Input id="credEmail" value={credEmail} onChange={(e) => setCredEmail(e.target.value)} />
-                          <Label htmlFor="credSenha" className="pt-2">Senha</Label>
-                          <Input id="credSenha" type="password" value={credSenha} onChange={(e) => setCredSenha(e.target.value)} />
-                          <div className="pt-2">
-                            <Button onClick={criarCredencial} disabled={loading}>Criar credencial</Button>
-                          </div>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="nome" className="text-sm font-medium">Nome</Label>
+                          <Input 
+                            id="nome" 
+                            value={nome} 
+                            onChange={(e) => setNome(e.target.value)}
+                            placeholder="Nome da loja"
+                            disabled={loading}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="telefone" className="text-sm font-medium">Telefone</Label>
+                          <Input 
+                            id="telefone" 
+                            value={telefone} 
+                            onChange={(e) => setTelefone(e.target.value)}
+                            placeholder="(00) 00000-0000"
+                            disabled={loading}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                          <Input 
+                            id="email" 
+                            type="email"
+                            value={email} 
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="contato@loja.com"
+                            disabled={loading}
+                          />
                         </div>
                       </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button onClick={save} disabled={loading}>Salvar Alterações</Button>
+                        <Dialog open={codigosDialogOpen} onOpenChange={setCodigosDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" disabled={loading} className="gap-2">
+                              <Code className="w-4 h-4" />
+                              Gerenciar Códigos
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Códigos de Acesso</DialogTitle>
+                              <DialogDescription>
+                                Gere e gerencie códigos para que novos funcionários acessem o sistema
+                              </DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-4">
+                              {/* Gerar Novo Código */}
+                              <div className="border rounded-lg p-4 bg-muted/50">
+                                <h3 className="font-semibold text-sm mb-3">Gerar Novo Código</h3>
+                                <div className="flex gap-2">
+                                  <div className="flex-1">
+                                    <Label htmlFor="horas" className="text-xs">Validade (horas)</Label>
+                                    <Input 
+                                      id="horas"
+                                      type="number" 
+                                      min="1" 
+                                      max="720"
+                                      value={novoCodigoHoras}
+                                      onChange={(e) => setNovoCodigoHoras(parseInt(e.target.value) || 24)}
+                                      disabled={loading}
+                                    />
+                                  </div>
+                                  <div className="flex items-end">
+                                    <Button 
+                                      onClick={gerarCodigo} 
+                                      disabled={loading}
+                                      className="gap-2"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                      Gerar
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Lista de Códigos */}
+                              <div>
+                                <h3 className="font-semibold text-sm mb-3">Códigos Criados</h3>
+                                {codigos.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum código gerado ainda</p>
+                                ) : (
+                                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {codigos.map((c) => {
+                                      const isExpired = c.expires_at && new Date(c.expires_at) < new Date()
+                                      const isUsed = c.used
+                                      
+                                      return (
+                                        <div 
+                                          key={c.id} 
+                                          className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <code className="text-sm font-mono font-bold bg-muted px-2 py-1 rounded">
+                                                {c.code}
+                                              </code>
+                                              <button
+                                                onClick={() => {
+                                                  navigator.clipboard.writeText(c.code)
+                                                  setMensagem('✓ Código copiado!')
+                                                  setTimeout(() => setMensagem(''), 2000)
+                                                }}
+                                                className="p-1 hover:bg-muted rounded"
+                                                title="Copiar código"
+                                              >
+                                                <Copy className="w-4 h-4" />
+                                              </button>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                              {isUsed ? (
+                                                <span className="flex items-center gap-1 text-xs bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
+                                                  <CheckCircle2 className="w-3 h-3" />
+                                                  Utilizado
+                                                </span>
+                                              ) : isExpired ? (
+                                                <span className="flex items-center gap-1 text-xs bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 px-2 py-1 rounded">
+                                                  <Clock className="w-3 h-3" />
+                                                  Expirado
+                                                </span>
+                                              ) : (
+                                                <span className="flex items-center gap-1 text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded">
+                                                  <Clock className="w-3 h-3" />
+                                                  Válido
+                                                </span>
+                                              )}
+                                              <span className="text-xs text-muted-foreground">
+                                                {new Date(c.expires_at).toLocaleString('pt-BR')}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     </CardContent>
                   </Card>
-                </div>
+
+                  {/* Grid de Credenciais e Usuários */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Criar Funcionário */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Criar Funcionário</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                          <div>
+                            <Label htmlFor="credEmail" className="text-sm font-medium">Email</Label>
+                            <Input 
+                              id="credEmail"
+                              type="email"
+                              placeholder="funcionario@email.com"
+                              value={credEmail}
+                              onChange={(e) => setCredEmail(e.target.value)}
+                              disabled={loading}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="credSenha" className="text-sm font-medium">Senha</Label>
+                            <div className="relative">
+                              <Input 
+                                id="credSenha"
+                                type={showPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={credSenha}
+                                onChange={(e) => setCredSenha(e.target.value)}
+                                disabled={loading}
+                                className="pr-10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                title={showPassword ? "Ocultar" : "Exibir"}
+                              >
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="credSenhaConfirm" className="text-sm font-medium">Confirmar Senha</Label>
+                            <div className="relative">
+                              <Input 
+                                id="credSenhaConfirm"
+                                type={showPasswordConfirm ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={credSenhaConfirm}
+                                onChange={(e) => setCredSenhaConfirm(e.target.value)}
+                                disabled={loading}
+                                className="pr-10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                title={showPasswordConfirm ? "Ocultar" : "Exibir"}
+                              >
+                                {showPasswordConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+                          <Button onClick={criarCredencial} disabled={loading} className="w-full gap-2">
+                            <Plus className="w-4 h-4" />
+                            Criar Funcionário
+                          </Button>
+                        </div>
+
+                        <div>
+                          <h3 className="font-semibold text-sm mb-3">Funcionários Cadastrados</h3>
+                          {credenciais.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum funcionário criado</p>
+                          ) : (
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {credenciais.map((c) => (
+                                <div 
+                                  key={c.id} 
+                                  className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-sm">{c.email}</div>
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      {c.auth_user_id ? '✓ Auth ativo' : '⚠️ Sem Auth'}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removerCredencial(c.id)}
+                                    disabled={loading}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Usuários com Acesso */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Usuários com Acesso</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {usuarios.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">Nenhum usuário com acesso</p>
+                        ) : (
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {usuarios.map((u) => (
+                              <div 
+                                key={u.id} 
+                                className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{u.usuario_id}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">{u.nivel_acesso}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <select 
+                                    value={u.nivel_acesso} 
+                                    onChange={(e) => alterarNivel(u.id, e.target.value)}
+                                    disabled={loading}
+                                    className="px-2 py-1 text-xs border rounded bg-background"
+                                  >
+                                    <option value="dono">Dono</option>
+                                    <option value="gerente">Gerente</option>
+                                    <option value="funcionario">Funcionário</option>
+                                  </select>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => removeUsuario(u.id)}
+                                    disabled={loading}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Mensagens */}
+                  {mensagem && (
+                    <div className={`p-4 rounded-lg border animate-in fade-in ${
+                      mensagem.includes('✓')
+                        ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
+                        : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
+                    }`}>
+                      <p className={`text-sm ${
+                        mensagem.includes('✓')
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {mensagem}
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Card>
+                  <CardContent className="py-12">
+                    <p className="text-center text-muted-foreground">Selecione uma loja para visualizar e editar suas configurações</p>
+                  </CardContent>
+                </Card>
               )}
             </div>
           </div>
