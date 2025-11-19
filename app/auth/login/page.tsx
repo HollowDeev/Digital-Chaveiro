@@ -33,7 +33,7 @@ export default function LoginPage() {
 
       if (error) throw error
 
-  router.push("/auth/loja-opcoes")
+      router.push("/auth/loja-opcoes")
       router.refresh()
     } catch (error: any) {
       console.error("[v0] Erro no login:", error)
@@ -116,7 +116,7 @@ export default function LoginPage() {
 
             <div className="text-center text-sm">
               <span className="text-muted-foreground">Não tem uma conta? </span>
-                      <Link href="/auth/cadastro" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">Cadastre-se</Link>
+              <Link href="/auth/cadastro" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">Cadastre-se</Link>
             </div>
           </form>
         </CardContent>

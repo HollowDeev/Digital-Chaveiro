@@ -1,28 +1,50 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { useServicos } from "@/lib/hooks/useLojaData"
 import { Wrench, Search, Clock } from "lucide-react"
-import { useState } from "react"
 
 export default function ServicosPage() {
-  const { servicos } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { servicos } = useServicos(lojaId)
   const [busca, setBusca] = useState("")
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   const servicosFiltrados = servicos.filter(
     (s) =>
       s.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      s.codigo.toLowerCase().includes(busca.toLowerCase()) ||
-      s.categoria.toLowerCase().includes(busca.toLowerCase()),
+      s.codigo.toLowerCase().includes(busca.toLowerCase()),
   )
 
   const totalServicos = servicos.filter((s) => s.ativo).length
-  const valorMedioServico = servicos.reduce((acc, s) => acc + s.preco, 0) / servicos.length
+  const valorMedioServico = servicos.length > 0 ? servicos.reduce((acc, s) => acc + s.preco, 0) / servicos.length : 0
 
   return (
     <div className="flex min-h-screen bg-background">

@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
+import { useEffect, useState } from "react"
 
-import { useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +22,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
+import { useContasPagar, useContasReceber } from "@/lib/hooks/useLojaData"
 import { useStore } from "@/lib/store"
 import {
   Wallet,
@@ -38,42 +40,64 @@ import {
 import type { ContaPagar, CategoriaDespesa, Perda, CategoriaPerda } from "@/lib/types"
 
 export default function ContasPage() {
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { contas: contasPagar } = useContasPagar(lojaId)
+  const { contas: contasReceber } = useContasReceber(lojaId)
+
+  // Dados do store para estado e ações
   const {
-    contasPagar,
-    vendasPrazo,
-    categoriasDespesas,
-    perdas,
-    categoriasPerdas, // Obtendo categorias de perdas
-    produtos,
-    funcionarios,
     adicionarContaPagar,
     adicionarCategoriaDespesa,
-    adicionarCategoriaPerda, // Importando função para adicionar categoria de perda
+    adicionarCategoriaPerda,
     adicionarPerda,
     pagarConta,
     pagarParcelaVendaPrazo,
+    categoriasDespesas,
+    perdas,
+    categoriasPerdas,
   } = useStore()
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   const [openNovaConta, setOpenNovaConta] = useState(false)
   const [openNovaCategoria, setOpenNovaCategoria] = useState(false)
-  const [openNovaCategoriaPerda, setOpenNovaCategoriaPerda] = useState(false) // Estado para modal de categoria de perda
+  const [openNovaCategoriaPerda, setOpenNovaCategoriaPerda] = useState(false)
   const [openNovaPerda, setOpenNovaPerda] = useState(false)
   const [busca, setBusca] = useState("")
 
   // Cálculos
   const totalPagar = contasPagar
-    .filter((c) => c.status === "pendente" || c.status === "atrasada")
+    .filter((c) => c.status === "pendente")
     .reduce((acc, c) => acc + c.valor, 0)
-  const totalVendasPrazo = vendasPrazo
-    .filter((v) => v.status !== "quitada")
-    .reduce((acc, v) => acc + v.valorRestante, 0)
+  const totalReceberPendente = contasReceber
+    .filter((c) => c.status === "pendente")
+    .reduce((acc, c) => acc + c.valor, 0)
   const totalPerdas = perdas.reduce((acc, p) => acc + p.custoTotal, 0)
 
   // Filtros
   const contasPagarFiltradas = contasPagar.filter(
     (c) =>
       c.descricao.toLowerCase().includes(busca.toLowerCase()) ||
-      c.categoria.toLowerCase().includes(busca.toLowerCase()),
+      c.categoria?.toLowerCase().includes(busca.toLowerCase()),
   )
 
   const perdasFiltradas = perdas.filter(

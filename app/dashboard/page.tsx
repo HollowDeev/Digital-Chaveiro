@@ -1,9 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { useProdutos, useVendas, useContasPagar, useContasReceber } from "@/lib/hooks/useLojaData"
 import {
   LayoutDashboard,
   TrendingUp,
@@ -17,7 +19,33 @@ import {
 import { Progress } from "@/components/ui/progress"
 
 export default function DashboardPage() {
-  const { vendas, produtos, clientes, caixaAtual, contasPagar, contasReceber, vendasPrazo } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { produtos } = useProdutos(lojaId)
+  const { vendas } = useVendas(lojaId)
+  const { contas: contasPagar } = useContasPagar(lojaId)
+  const { contas: contasReceber } = useContasReceber(lojaId)
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Buscar primeira loja onde é dono
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   // Calcular métricas
   const hoje = new Date().toISOString().split("T")[0]
@@ -28,10 +56,8 @@ export default function DashboardPage() {
   const produtosBaixoEstoque = produtos.filter((p) => p.estoque < 20 && p.ativo)
   const valorEstoque = produtos.reduce((acc, p) => acc + p.custoUnitario * p.estoque, 0)
 
-  const saldoCaixa =
-    caixaAtual?.movimentacoes.reduce((acc, m) => {
-      return acc + (m.tipo === "entrada" ? m.valor : -m.valor)
-    }, 0) || 0
+  // Saldo de caixa será buscado da tabela movimentacoes_caixa quando implementado
+  const saldoCaixa = receitaHoje
 
   const metaMensal = 15000
   const progressoMeta = (receitaHoje / metaMensal) * 100

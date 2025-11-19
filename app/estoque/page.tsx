@@ -1,18 +1,41 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { useProdutos } from "@/lib/hooks/useLojaData"
 import { Package, Search, AlertTriangle } from "lucide-react"
-import { useState } from "react"
 
 export default function EstoquePage() {
-  const { produtos } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { produtos } = useProdutos(lojaId)
   const [busca, setBusca] = useState("")
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   const produtosFiltrados = produtos.filter(
     (p) =>

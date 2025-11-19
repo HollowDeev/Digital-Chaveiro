@@ -53,8 +53,8 @@ export default function CadastroPage() {
 
       if (error) throw error
 
-  // Redireciona para opções de loja (criar ou entrar via código)
-  router.push("/auth/loja-opcoes")
+      // Redireciona para opções de loja (criar ou entrar via código)
+      router.push("/auth/loja-opcoes")
       router.refresh()
     } catch (error: any) {
       console.error("[v0] Erro no cadastro:", error)

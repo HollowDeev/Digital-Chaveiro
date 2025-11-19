@@ -1,6 +1,15 @@
+  const [modalCaixa, setModalCaixa] = useState(false)
+  useEffect(() => {
+    if (caixaAtual?.status !== "aberto") {
+      setModalCaixa(true)
+    } else {
+      setModalCaixa(false)
+    }
+  }, [caixaAtual])
 "use client"
 
 import type React from "react"
+import { useEffect, useState } from "react"
 
 import { Sidebar } from "@/components/sidebar"
 import { Button } from "@/components/ui/button"
@@ -8,29 +17,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { createClient } from "@/lib/supabase/client"
+import { useProdutos, useServicos, useClientes } from "@/lib/hooks/useLojaData"
 import { useStore } from "@/lib/store"
 import { ShoppingCart, Wrench, Plus, Trash2, DollarSign, Clock, Calendar, AlertTriangle, Users } from "lucide-react"
-import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import ThemeToggle from "@/components/theme-toggle"
 
 export default function PDVPage() {
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { produtos } = useProdutos(lojaId)
+  const { servicos } = useServicos(lojaId)
+  const { clientes } = useClientes(lojaId)
+
+  // Dados do store para estado da venda
   const {
     vendaAtual,
-    produtos,
-    servicos,
-    clientes,
-    funcionarios,
-    categoriasPerdas, // Adicionando categorias de perdas
-    caixaAtual,
     adicionarItem,
     removerItem,
     atualizarQuantidade,
     setDesconto,
     setCliente,
-    setFuncionarioVenda, // Importando função para definir funcionário
+    setFuncionarioVenda,
     limparVenda,
     finalizarVenda,
     getResumoVendas,
@@ -38,6 +48,29 @@ export default function PDVPage() {
     adicionarContaReceber,
     adicionarPerda,
   } = useStore()
+  const { funcionarios, categoriasPerdas, caixaAtual } = useStore()
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Buscar primeira loja onde é dono ou tem acesso
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   // const [headerVisible, setHeaderVisible] = useState(true)
   // const [headerHoverTimeout, setHeaderHoverTimeout] = useState<NodeJS.Timeout | null>(null)
@@ -123,14 +156,28 @@ export default function PDVPage() {
     if (vendaAtual.itens.length === 0) return
     if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
       alert("Selecione um cliente para venda a prazo!")
-      return
-    }
-    if (!dataVencimento) {
-      alert("Defina a data de vencimento!")
-      return
-    }
-    const cliente = clientes.find((c) => c.id === vendaAtual.clienteId)
-    if (!cliente) return
+      return (
+        <div className="flex min-h-screen bg-background relative">
+          <Sidebar />
+          <main className={`flex-1 lg:ml-64 ${modalCaixa ? 'blur-sm pointer-events-none select-none' : ''}`}>
+            {/* ...existing code... */}
+          </main>
+          {modalCaixa && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="bg-background rounded-xl shadow-xl p-8 flex flex-col items-center gap-4 max-w-sm w-full">
+                <h2 className="text-xl font-bold text-destructive">Caixa fechado</h2>
+                <p className="text-sm text-muted-foreground text-center">Abra o caixa para registrar vendas ou serviços.</p>
+                <Button
+                  className="bg-accent text-accent-foreground hover:bg-accent/90 w-full"
+                  onClick={() => {/* lógica para abrir caixa */}}
+                >
+                  Abrir Caixa
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )
     const valorParcela = total / numeroParcelas;
     const now = Date.now();
     const parcelas = Array.from({ length: numeroParcelas }, (_, i) => {
@@ -145,27 +192,27 @@ export default function PDVPage() {
       };
     });
     const vendaPrazo = {
-  id: `VP${now}`,
-  vendaId: `VP${now}`,
-  clienteId: cliente.id,
-  clienteNome: cliente.nome,
-  valorTotal: total,
-  valorPago: 0,
-  valorRestante: total,
-  dataVenda: new Date().toISOString(),
-  dataVencimento: parcelas[0].dataVencimento,
-  status: "pendente" as const,
-  parcelas,
+      id: `VP${now}`,
+      vendaId: `VP${now}`,
+      clienteId: cliente.id,
+      clienteNome: cliente.nome,
+      valorTotal: total,
+      valorPago: 0,
+      valorRestante: total,
+      dataVenda: new Date().toISOString(),
+      dataVencimento: parcelas[0].dataVencimento,
+      status: "pendente" as const,
+      parcelas,
     };
     adicionarVendaPrazo(vendaPrazo);
     adicionarContaReceber({
-  id: `CR${now}`,
-  descricao: `Venda a Prazo - ${cliente.nome} (Parcela 1/${numeroParcelas})`,
-  valor: valorParcela,
-  dataVencimento: parcelas[0].dataVencimento,
-  status: "pendente",
-  clienteId: cliente.id,
-  clienteNome: cliente.nome,
+      id: `CR${now}`,
+      descricao: `Venda a Prazo - ${cliente.nome} (Parcela 1/${numeroParcelas})`,
+      valor: valorParcela,
+      dataVencimento: parcelas[0].dataVencimento,
+      status: "pendente",
+      clienteId: cliente.id,
+      clienteNome: cliente.nome,
     });
     limparVenda()
     setDialogPagamento(false)
@@ -351,14 +398,14 @@ export default function PDVPage() {
                     <SelectValue placeholder="Selecione o funcionário (obrigatório)" />
                   </SelectTrigger>
                   <SelectContent>
-                      {funcionarios
-                        .filter((f) => f.ativo)
-                        .map((func) => (
-                          <SelectItem key={func.id} value={func.id}>
-                            {func.nome} - {func.cargo}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
+                    {funcionarios
+                      .filter((f) => f.ativo)
+                      .map((func) => (
+                        <SelectItem key={func.id} value={func.id}>
+                          {func.nome} - {func.cargo}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
                 </Select>
                 {!vendaAtual.funcionarioId && (
                   <p className="mt-2 text-xs text-destructive">Selecione um funcionário antes de finalizar a venda</p>

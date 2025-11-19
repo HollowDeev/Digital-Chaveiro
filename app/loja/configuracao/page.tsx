@@ -75,7 +75,6 @@ export default function LojaConfiguracaoPage() {
       // Apenas donos podem atualizar
       if (selected.dono_id !== user.id) {
         setMensagem('Apenas o dono pode alterar os dados da loja')
-        setLoading(false)
         return
       }
 
@@ -95,10 +94,10 @@ export default function LojaConfiguracaoPage() {
     setLoading(true)
     setMensagem("")
     try {
-      const res = await fetch('/api/lojas/generate-code', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ lojaId: selected.id, hours: novoCodigoHoras }) 
+      const res = await fetch('/api/lojas/generate-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lojaId: selected.id, hours: novoCodigoHoras })
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.message || 'Erro')
@@ -125,8 +124,58 @@ export default function LojaConfiguracaoPage() {
 
   async function fetchUsuarios(lojaId: string) {
     try {
-      const { data } = await supabase.from('lojas_usuarios').select('*').eq('loja_id', lojaId)
-      setUsuarios(data || [])
+      const { data } = await supabase
+        .from('lojas_usuarios')
+        .select('id, usuario_id, nivel_acesso')
+        .eq('loja_id', lojaId)
+
+      if (!data) {
+        setUsuarios([])
+        return
+      }
+
+      // Buscamos as credenciais desta loja para mapear email / nome
+      const { data: creds } = await supabase
+        .from('lojas_credenciais_funcionarios')
+        .select('id, email, auth_user_id')
+        .eq('loja_id', lojaId)
+
+      const credMap = new Map<string, any>()
+        ; (creds || []).forEach((c: any) => {
+          if (c.auth_user_id) credMap.set(c.auth_user_id, c)
+        })
+
+      let usuariosComNome = data.map((u: any) => ({
+        ...u,
+        displayName: credMap.get(u.usuario_id)?.email || undefined,
+        email: credMap.get(u.usuario_id)?.email || undefined,
+      }))
+
+      // Para os usuario_ids que não possuem credencial (entraram via código),
+      // buscamos no auth.users via endpoint server-side que usa a service role.
+      const missing = usuariosComNome.filter((u: any) => !u.email).map((u: any) => u.usuario_id)
+      if (missing.length > 0) {
+        try {
+          const res = await fetch('/api/lojas/users-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userIds: missing })
+          })
+          if (res.ok) {
+            const json = await res.json()
+            const map = new Map((json.users || []).map((x: any) => [x.id, x]))
+            usuariosComNome = usuariosComNome.map((u: any) => ({
+              ...u,
+              displayName: u.displayName || (map.get(u.usuario_id) as any)?.displayName,
+              email: u.email || (map.get(u.usuario_id) as any)?.email,
+            }))
+          }
+        } catch (e) {
+          console.error('Erro ao buscar usuários em auth via endpoint', e)
+        }
+      }
+
+      setUsuarios(usuariosComNome)
     } catch (err) {
       console.error('Erro fetch usuarios', err)
       setUsuarios([])
@@ -253,14 +302,13 @@ export default function LojaConfiguracaoPage() {
                 <div className="space-y-2">
                   {stores.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma loja encontrada</p>}
                   {stores.map((s) => (
-                    <button 
-                      key={s.id} 
-                      onClick={() => selectStore(s)} 
-                      className={`w-full text-left p-3 border rounded-lg transition ${ 
-                        selected?.id === s.id 
-                          ? 'bg-primary/10 border-primary ring-1 ring-primary' 
+                    <button
+                      key={s.id}
+                      onClick={() => selectStore(s)}
+                      className={`w-full text-left p-3 border rounded-lg transition ${selected?.id === s.id
+                          ? 'bg-primary/10 border-primary ring-1 ring-primary'
                           : 'hover:bg-muted/50 hover:border-muted-foreground/30'
-                      }`}
+                        }`}
                     >
                       <div className="font-semibold text-sm">{s.nome}</div>
                       <div className="text-xs text-muted-foreground mt-1">{s.cnpj || s.telefone || 'Sem dados'}</div>
@@ -283,9 +331,9 @@ export default function LojaConfiguracaoPage() {
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
                           <Label htmlFor="nome" className="text-sm font-medium">Nome</Label>
-                          <Input 
-                            id="nome" 
-                            value={nome} 
+                          <Input
+                            id="nome"
+                            value={nome}
                             onChange={(e) => setNome(e.target.value)}
                             placeholder="Nome da loja"
                             disabled={loading}
@@ -293,9 +341,9 @@ export default function LojaConfiguracaoPage() {
                         </div>
                         <div>
                           <Label htmlFor="telefone" className="text-sm font-medium">Telefone</Label>
-                          <Input 
-                            id="telefone" 
-                            value={telefone} 
+                          <Input
+                            id="telefone"
+                            value={telefone}
                             onChange={(e) => setTelefone(e.target.value)}
                             placeholder="(00) 00000-0000"
                             disabled={loading}
@@ -303,10 +351,10 @@ export default function LojaConfiguracaoPage() {
                         </div>
                         <div className="md:col-span-2">
                           <Label htmlFor="email" className="text-sm font-medium">Email</Label>
-                          <Input 
-                            id="email" 
+                          <Input
+                            id="email"
                             type="email"
-                            value={email} 
+                            value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="contato@loja.com"
                             disabled={loading}
@@ -329,7 +377,7 @@ export default function LojaConfiguracaoPage() {
                                 Gere e gerencie códigos para que novos funcionários acessem o sistema
                               </DialogDescription>
                             </DialogHeader>
-                            
+
                             <div className="space-y-4">
                               {/* Gerar Novo Código */}
                               <div className="border rounded-lg p-4 bg-muted/50">
@@ -337,10 +385,10 @@ export default function LojaConfiguracaoPage() {
                                 <div className="flex gap-2">
                                   <div className="flex-1">
                                     <Label htmlFor="horas" className="text-xs">Validade (horas)</Label>
-                                    <Input 
+                                    <Input
                                       id="horas"
-                                      type="number" 
-                                      min="1" 
+                                      type="number"
+                                      min="1"
                                       max="720"
                                       value={novoCodigoHoras}
                                       onChange={(e) => setNovoCodigoHoras(parseInt(e.target.value) || 24)}
@@ -348,8 +396,8 @@ export default function LojaConfiguracaoPage() {
                                     />
                                   </div>
                                   <div className="flex items-end">
-                                    <Button 
-                                      onClick={gerarCodigo} 
+                                    <Button
+                                      onClick={gerarCodigo}
                                       disabled={loading}
                                       className="gap-2"
                                     >
@@ -370,10 +418,10 @@ export default function LojaConfiguracaoPage() {
                                     {codigos.map((c) => {
                                       const isExpired = c.expires_at && new Date(c.expires_at) < new Date()
                                       const isUsed = c.used
-                                      
+
                                       return (
-                                        <div 
-                                          key={c.id} 
+                                        <div
+                                          key={c.id}
                                           className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition"
                                         >
                                           <div className="flex-1 min-w-0">
@@ -439,7 +487,7 @@ export default function LojaConfiguracaoPage() {
                         <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
                           <div>
                             <Label htmlFor="credEmail" className="text-sm font-medium">Email</Label>
-                            <Input 
+                            <Input
                               id="credEmail"
                               type="email"
                               placeholder="funcionario@email.com"
@@ -451,7 +499,7 @@ export default function LojaConfiguracaoPage() {
                           <div>
                             <Label htmlFor="credSenha" className="text-sm font-medium">Senha</Label>
                             <div className="relative">
-                              <Input 
+                              <Input
                                 id="credSenha"
                                 type={showPassword ? "text" : "password"}
                                 placeholder="••••••••"
@@ -473,7 +521,7 @@ export default function LojaConfiguracaoPage() {
                           <div>
                             <Label htmlFor="credSenhaConfirm" className="text-sm font-medium">Confirmar Senha</Label>
                             <div className="relative">
-                              <Input 
+                              <Input
                                 id="credSenhaConfirm"
                                 type={showPasswordConfirm ? "text" : "password"}
                                 placeholder="••••••••"
@@ -498,37 +546,7 @@ export default function LojaConfiguracaoPage() {
                           </Button>
                         </div>
 
-                        <div>
-                          <h3 className="font-semibold text-sm mb-3">Funcionários Cadastrados</h3>
-                          {credenciais.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-4">Nenhum funcionário criado</p>
-                          ) : (
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                              {credenciais.map((c) => (
-                                <div 
-                                  key={c.id} 
-                                  className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition"
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-sm">{c.email}</div>
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {c.auth_user_id ? '✓ Auth ativo' : '⚠️ Sem Auth'}
-                                    </div>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removerCredencial(c.id)}
-                                    disabled={loading}
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        {/* lista de credenciais removida daqui — mantida apenas em Usuários com Acesso */}
                       </CardContent>
                     </Card>
 
@@ -543,17 +561,17 @@ export default function LojaConfiguracaoPage() {
                         ) : (
                           <div className="space-y-2 max-h-96 overflow-y-auto">
                             {usuarios.map((u) => (
-                              <div 
-                                key={u.id} 
+                              <div
+                                key={u.id}
                                 className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/50 transition"
                               >
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm truncate">{u.usuario_id}</div>
+                                  <div className="font-medium text-sm truncate">{u.displayName || u.email || u.usuario_id?.substring(0, 8)}</div>
                                   <div className="text-xs text-muted-foreground mt-1">{u.nivel_acesso}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <select 
-                                    value={u.nivel_acesso} 
+                                  <select
+                                    value={u.nivel_acesso}
                                     onChange={(e) => alterarNivel(u.id, e.target.value)}
                                     disabled={loading}
                                     className="px-2 py-1 text-xs border rounded bg-background"
@@ -562,9 +580,9 @@ export default function LojaConfiguracaoPage() {
                                     <option value="gerente">Gerente</option>
                                     <option value="funcionario">Funcionário</option>
                                   </select>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     onClick={() => removeUsuario(u.id)}
                                     disabled={loading}
                                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
@@ -582,16 +600,14 @@ export default function LojaConfiguracaoPage() {
 
                   {/* Mensagens */}
                   {mensagem && (
-                    <div className={`p-4 rounded-lg border animate-in fade-in ${
-                      mensagem.includes('✓')
+                    <div className={`p-4 rounded-lg border animate-in fade-in ${mensagem.includes('✓')
                         ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900'
                         : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900'
-                    }`}>
-                      <p className={`text-sm ${
-                        mensagem.includes('✓')
+                      }`}>
+                      <p className={`text-sm ${mensagem.includes('✓')
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
-                      }`}>
+                        }`}>
                         {mensagem}
                       </p>
                     </div>

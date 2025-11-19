@@ -1,24 +1,47 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { useClientes } from "@/lib/hooks/useLojaData"
 import { Users, Search, Mail, Phone } from "lucide-react"
-import { useState } from "react"
 
 export default function ClientesPage() {
-  const { clientes } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { clientes } = useClientes(lojaId)
   const [busca, setBusca] = useState("")
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   const clientesFiltrados = clientes.filter(
     (c) =>
       c.nome.toLowerCase().includes(busca.toLowerCase()) ||
       c.email?.toLowerCase().includes(busca.toLowerCase()) ||
       c.telefone?.includes(busca) ||
-      c.cpf?.includes(busca),
+      c.cpf_cnpj?.includes(busca),
   )
 
   return (
