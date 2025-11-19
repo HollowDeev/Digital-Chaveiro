@@ -80,16 +80,15 @@ export default function CriarLojaPage() {
     setErro("")
 
     try {
-      // Apenas salvar as credenciais do funcionário na tabela
-      const { error: credenciaisError } = await supabase
-        .from("lojas_credenciais_funcionarios")
-        .insert({
-          loja_id: lojaId,
-          email: emailFuncionario,
-          password_hash: senhaFuncionario, // TODO: Hash this properly in production
-        })
+      // Chama API server-side que cria o usuário no Auth e insere a credencial na tabela
+      const res = await fetch('/api/lojas/create-employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lojaId, email: emailFuncionario, password: senhaFuncionario }),
+      })
 
-      if (credenciaisError) throw credenciaisError
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.message || 'Erro ao criar credencial')
 
       setErro("")
       router.push("/")

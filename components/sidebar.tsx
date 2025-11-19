@@ -14,6 +14,7 @@ import {
   FileText,
   Receipt,
   Sparkles,
+  Settings,
 } from "lucide-react"
 import ThemeToggle from "./theme-toggle"
 
@@ -28,6 +29,8 @@ const navItems = [
   { href: "/contas", label: "Contas", icon: Wallet },
   { href: "/caixa", label: "Caixa", icon: Wallet },
   { href: "/relatorios", label: "Relatórios", icon: FileText },
+  { href: "/loja/configuracao", label: "Loja", icon: Settings },
+  { href: "/conta/configuracao", label: "Conta", icon: UserCircle },
 ]
 
 export function Sidebar() {
