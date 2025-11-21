@@ -249,11 +249,10 @@ export default function CaixaPage() {
                       >
                         <div className="flex items-start gap-3 lg:gap-4">
                           <div
-                            className={`rounded-lg p-2 lg:p-3 flex-shrink-0 ${
-                              movimentacao.tipo === "entrada"
+                            className={`rounded-lg p-2 lg:p-3 flex-shrink-0 ${movimentacao.tipo === "entrada"
                                 ? "bg-accent/10 text-accent"
                                 : "bg-destructive/10 text-destructive"
-                            }`}
+                              }`}
                           >
                             {movimentacao.tipo === "entrada" ? (
                               <TrendingUp className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -287,9 +286,8 @@ export default function CaixaPage() {
 
                         <div className="text-left lg:text-right">
                           <p
-                            className={`text-xl font-bold lg:text-2xl ${
-                              movimentacao.tipo === "entrada" ? "text-accent" : "text-destructive"
-                            }`}
+                            className={`text-xl font-bold lg:text-2xl ${movimentacao.tipo === "entrada" ? "text-accent" : "text-destructive"
+                              }`}
                           >
                             {movimentacao.tipo === "entrada" ? "+" : "-"} R$ {movimentacao.valor.toFixed(2)}
                           </p>

@@ -188,7 +188,7 @@ export default function EstoquePage() {
             <p className="text-sm text-muted-foreground text-center">Abra o caixa para registrar vendas ou serviços.</p>
             <Button
               className="bg-accent text-accent-foreground hover:bg-accent/90 w-full"
-              onClick={() => {/* lógica para abrir caixa */}}
+              onClick={() => {/* lógica para abrir caixa */ }}
             >
               Abrir Caixa
             </Button>
