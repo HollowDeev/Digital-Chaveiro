@@ -23,48 +23,48 @@ export function useProdutos(lojaId?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
+  const fetchProdutos = async () => {
     if (!lojaId) {
       setProdutos([])
       setLoading(false)
       return
     }
 
-    const fetchProdutos = async () => {
-      const supabase = createClient()
-      try {
-        const { data, error: err } = await supabase
-          .from("produtos")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .eq("ativo", true)
-          .order("nome")
+    const supabase = createClient()
+    try {
+      const { data, error: err } = await supabase
+        .from("produtos")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .eq("ativo", true)
+        .order("nome")
 
-        if (err) throw err
-        setProdutos(
-          (data || []).map((p: any) => ({
-            id: p.id,
-            nome: p.nome,
-            codigo: p.codigo,
-            preco: p.preco,
-            custoUnitario: p.custo_unitario,
-            estoque: p.estoque,
-            categoria: p.categoria,
-            descricao: p.descricao,
-            ativo: p.ativo,
-          }))
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Erro ao buscar produtos"))
-      } finally {
-        setLoading(false)
-      }
+      if (err) throw err
+      setProdutos(
+        (data || []).map((p: any) => ({
+          id: p.id,
+          nome: p.nome,
+          codigo: p.codigo_barras || "",
+          preco: p.preco,
+          custoUnitario: p.custo || 0,
+          estoque: p.estoque,
+          categoria: p.categoria || "",
+          descricao: p.descricao || "",
+          ativo: p.ativo,
+        }))
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar produtos"))
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchProdutos()
   }, [lojaId])
 
-  return { produtos, loading, error }
+  return { produtos, loading, error, refetch: fetchProdutos }
 }
 
 /**
@@ -75,46 +75,47 @@ export function useServicos(lojaId?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
+  const fetchServicos = async () => {
     if (!lojaId) {
       setServicos([])
       setLoading(false)
       return
     }
 
-    const fetchServicos = async () => {
-      const supabase = createClient()
-      try {
-        const { data, error: err } = await supabase
-          .from("servicos")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .eq("ativo", true)
-          .order("nome")
+    const supabase = createClient()
+    try {
+      const { data, error: err } = await supabase
+        .from("servicos")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .eq("ativo", true)
+        .order("nome")
 
-        if (err) throw err
-        setServicos(
-          (data || []).map((s: any) => ({
-            id: s.id,
-            nome: s.nome,
-            codigo: s.codigo,
-            preco: s.preco,
-            descricao: s.descricao,
-            duracao_minutos: s.duracao_minutos,
-            ativo: s.ativo,
-          }))
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Erro ao buscar serviços"))
-      } finally {
-        setLoading(false)
-      }
+      if (err) throw err
+      setServicos(
+        (data || []).map((s: any) => ({
+          id: s.id,
+          nome: s.nome,
+          codigo: s.id.substring(0, 8), // Gera um código a partir do ID
+          preco: s.preco,
+          categoria: "Serviço",
+          descricao: s.descricao || "",
+          duracao: s.duracao_estimada || null,
+          ativo: s.ativo,
+        }))
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar serviços"))
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchServicos()
   }, [lojaId])
 
-  return { servicos, loading, error }
+  return { servicos, loading, error, refetch: fetchServicos }
 }
 
 /**

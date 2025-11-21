@@ -23,7 +23,7 @@ export default function PDVPage() {
   const { produtos } = useProdutos(lojaId)
   const { servicos } = useServicos(lojaId)
   const { clientes } = useClientes(lojaId)
-  
+
   const {
     vendaAtual,
     adicionarItem,
@@ -44,7 +44,7 @@ export default function PDVPage() {
 
   // 2. Estados
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<Array<{id: string, nome: string, preco: number, tipo: 'produto' | 'servico', estoque?: number}>>([])
+  const [searchResults, setSearchResults] = useState<Array<{ id: string, nome: string, preco: number, tipo: 'produto' | 'servico', estoque?: number }>>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0)
   const [descontoTipo, setDescontoTipo] = useState<'valor' | 'percentual'>('valor')
@@ -54,7 +54,7 @@ export default function PDVPage() {
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [sidebarVisible, setSidebarVisible] = useState(false)
-  
+
   const [dialogAbrirCaixa, setDialogAbrirCaixa] = useState(false)
   const [funcionarioIdCaixa, setFuncionarioIdCaixa] = useState("")
   const [valorAberturaCaixa, setValorAberturaCaixa] = useState(0)
@@ -142,7 +142,7 @@ export default function PDVPage() {
         mostrarToast("⚠️ Defina a data de vencimento!")
         return
       }
-      
+
       const cliente = clientes.find((c) => c.id === vendaAtual.clienteId)
       if (!cliente) return
 
@@ -159,7 +159,7 @@ export default function PDVPage() {
           status: "pendente" as const,
         }
       })
-      
+
       const vendaPrazo = {
         id: `VP${now}`,
         vendaId: `VP${now}`,
@@ -173,7 +173,7 @@ export default function PDVPage() {
         status: "pendente" as const,
         parcelas,
       }
-      
+
       adicionarVendaPrazo(vendaPrazo)
       adicionarContaReceber({
         id: `CR${now}`,
@@ -184,7 +184,7 @@ export default function PDVPage() {
         clienteId: cliente.id,
         clienteNome: cliente.nome,
       })
-      
+
       limparVenda()
       setDialogPagamento(false)
       setVendaAPrazo(false)
@@ -241,7 +241,7 @@ export default function PDVPage() {
       if (e.key === 'F2') { e.preventDefault(); searchInputRef.current?.focus() }
       if (e.key === 'F3') { e.preventDefault(); document.getElementById('select-cliente')?.click() }
       if (e.key === 'F4') { e.preventDefault(); descontoInputRef.current?.focus() }
-      if (e.key === 'F9') { 
+      if (e.key === 'F9') {
         e.preventDefault()
         if (vendaAtual.itens.length > 0 && vendaAtual.funcionarioId) setDialogPagamento(true)
       }
@@ -331,7 +331,7 @@ export default function PDVPage() {
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
       {/* Sidebar com auto-hide */}
-      <div 
+      <div
         className={cn(
           "fixed left-0 top-0 z-50 h-full w-16 transition-all duration-300",
           sidebarVisible && "w-64"
@@ -426,7 +426,7 @@ export default function PDVPage() {
                   <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                   <span className="font-medium">Caixa Aberto</span>
                 </Badge>
-                
+
                 {vendaAtual.itens.length > 0 && (
                   <Badge className="gap-2 bg-primary px-3 py-1.5">
                     <ShoppingCart className="h-4 w-4" />
@@ -731,7 +731,7 @@ export default function PDVPage() {
           <DialogHeader>
             <DialogTitle>Finalizar Venda</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             {/* Forma de Pagamento */}
             <div className="space-y-3">
