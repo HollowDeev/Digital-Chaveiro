@@ -483,20 +483,15 @@ export default function PDVPage() {
                   <button
                     key={produto.id}
                     onClick={() => adicionarItemRapido(produto.id, 'produto')}
-                    className="group relative flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
+                    className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
                   >
                     {produto.estoque <= 5 && (
-                      <Badge variant="destructive" className="absolute right-2 top-2 text-xs">
-                        Estoque: {produto.estoque}
+                      <Badge variant="destructive" className="absolute right-1.5 top-1.5 text-xs px-1.5 py-0">
+                        Est: {produto.estoque}
                       </Badge>
                     )}
-                    <div className="flex h-16 items-center justify-center rounded-md bg-accent/50">
-                      <Package className="h-8 w-8 text-accent-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium line-clamp-2 text-sm">{produto.nome}</p>
-                      <p className="text-lg font-bold text-primary">R$ {produto.preco.toFixed(2)}</p>
-                    </div>
+                    <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
+                    <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
                   </button>
                 ))}
 
@@ -504,20 +499,15 @@ export default function PDVPage() {
                   <button
                     key={produto.id}
                     onClick={() => adicionarItemRapido(produto.id, 'produto')}
-                    className="group relative flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
+                    className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
                   >
                     {produto.estoque <= 5 && (
-                      <Badge variant="destructive" className="absolute right-2 top-2 text-xs">
-                        Estoque: {produto.estoque}
+                      <Badge variant="destructive" className="absolute right-1.5 top-1.5 text-xs px-1.5 py-0">
+                        Est: {produto.estoque}
                       </Badge>
                     )}
-                    <div className="flex h-16 items-center justify-center rounded-md bg-accent/50">
-                      <Package className="h-8 w-8 text-accent-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium line-clamp-2 text-sm">{produto.nome}</p>
-                      <p className="text-lg font-bold text-primary">R$ {produto.preco.toFixed(2)}</p>
-                    </div>
+                    <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
+                    <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
                   </button>
                 ))}
 
@@ -525,32 +515,27 @@ export default function PDVPage() {
                   <button
                     key={servico.id}
                     onClick={() => adicionarItemRapido(servico.id, 'servico')}
-                    className="group relative flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
+                    className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
                   >
-                    <div className="flex h-16 items-center justify-center rounded-md bg-muted">
-                      <Wrench className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium line-clamp-2 text-sm">{servico.nome}</p>
-                      <p className="text-lg font-bold text-primary">R$ {servico.preco.toFixed(2)}</p>
-                    </div>
+                    <p className="font-medium line-clamp-2 text-sm">{servico.nome}</p>
+                    <p className="text-lg font-bold text-primary mt-1">R$ {servico.preco.toFixed(2)}</p>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Coluna Direita - Carrinho e Ações */}
-            <div className="col-span-5 flex flex-col gap-4">
+            <div className="col-span-5 flex flex-col gap-3 overflow-hidden">
               {/* Seleções Rápidas */}
               <Card>
-                <CardContent className="grid grid-cols-2 gap-3 p-4">
-                  <div className="col-span-2">
-                    <Label className="text-xs mb-1.5 flex items-center gap-1">
+                <CardContent className="grid grid-cols-2 gap-2 p-2">
+                  <div>
+                    <Label className="text-xs mb-1 flex items-center gap-1">
                       <Users className="h-3 w-3" />
                       Vendedor <span className="text-destructive">*</span>
                     </Label>
                     <Select value={vendaAtual.funcionarioId || ""} onValueChange={setFuncionarioVenda}>
-                      <SelectTrigger className={!vendaAtual.funcionarioId ? "border-destructive" : ""}>
+                      <SelectTrigger className={!vendaAtual.funcionarioId ? "border-destructive h-9" : "h-9"}>
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -563,10 +548,10 @@ export default function PDVPage() {
                     </Select>
                   </div>
 
-                  <div className="col-span-2">
-                    <Label className="text-xs mb-1.5" id="select-cliente">Cliente (F3)</Label>
+                  <div>
+                    <Label className="text-xs mb-1" id="select-cliente">Cliente (F3)</Label>
                     <Select value={vendaAtual.clienteId} onValueChange={setCliente}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-9">
                         <SelectValue placeholder="Sem cliente" />
                       </SelectTrigger>
                       <SelectContent>
@@ -583,19 +568,19 @@ export default function PDVPage() {
               </Card>
 
               {/* Carrinho */}
-              <Card className="flex-1 flex flex-col">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center justify-between text-base">
+              <Card className="flex-1 flex flex-col overflow-hidden">
+                <CardHeader className="pb-1.5 px-2 pt-2">
+                  <CardTitle className="flex items-center justify-between text-sm">
                     <span>Carrinho</span>
                     {vendaAtual.itens.length > 0 && (
-                      <Button variant="ghost" size="sm" onClick={limparVenda}>
-                        <X className="h-4 w-4 mr-1" />
+                      <Button variant="ghost" size="sm" className="h-7" onClick={limparVenda}>
+                        <X className="h-3 w-3 mr-1" />
                         Limpar
                       </Button>
                     )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 overflow-auto space-y-2 pb-4">
+                <CardContent className="flex-1 overflow-auto space-y-1 px-2 pb-2">
                   {vendaAtual.itens.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                       <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
@@ -605,40 +590,40 @@ export default function PDVPage() {
                     vendaAtual.itens.map((item, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-3"
+                        className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{item.nome}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="font-medium text-xs truncate">{item.nome}</p>
+                          <p className="text-[10px] text-muted-foreground">
                             R$ {item.preco.toFixed(2)}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
+                            className="h-6 w-6"
                             onClick={() => atualizarQuantidade(index, Math.max(1, item.quantidade - 1))}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
-                          <span className="w-8 text-center font-medium">{item.quantidade}</span>
+                          <span className="w-7 text-center text-xs font-medium">{item.quantidade}</span>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
+                            className="h-6 w-6"
                             onClick={() => atualizarQuantidade(index, item.quantidade + 1)}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-sm">R$ {item.subtotal.toFixed(2)}</p>
+                          <p className="font-bold text-xs">R$ {item.subtotal.toFixed(2)}</p>
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-6 w-6"
                           onClick={() => {
                             removerItem(index)
                             mostrarToast("❌ Item removido")
@@ -655,15 +640,15 @@ export default function PDVPage() {
               {/* Total e Ações */}
               {vendaAtual.itens.length > 0 && (
                 <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="space-y-3 p-4">
+                  <CardContent className="space-y-2 p-2">
                     {/* Desconto */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Label className="text-xs">Desconto (F4)</Label>
-                      <div className="flex gap-1">
+                      <div className="flex gap-0.5">
                         <Button
                           variant={descontoTipo === 'valor' ? 'default' : 'outline'}
                           size="sm"
-                          className="h-6 px-2 text-xs"
+                          className="h-7 px-2 text-xs"
                           onClick={() => setDescontoTipo('valor')}
                         >
                           R$
@@ -671,7 +656,7 @@ export default function PDVPage() {
                         <Button
                           variant={descontoTipo === 'percentual' ? 'default' : 'outline'}
                           size="sm"
-                          className="h-6 px-2 text-xs"
+                          className="h-7 px-2 text-xs"
                           onClick={() => setDescontoTipo('percentual')}
                         >
                           %
@@ -684,24 +669,24 @@ export default function PDVPage() {
                         step="0.01"
                         value={descontoInput}
                         onChange={(e) => setDescontoInput(e.target.value)}
-                        className="flex-1 h-8 text-sm"
+                        className="flex-1 h-7 text-sm"
                         placeholder="0"
                       />
                     </div>
 
                     {/* Resumo */}
-                    <div className="space-y-1 border-t border-border pt-2">
-                      <div className="flex justify-between text-sm">
+                    <div className="space-y-0.5 border-t border-border pt-1.5">
+                      <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Subtotal:</span>
                         <span>R$ {subtotal.toFixed(2)}</span>
                       </div>
                       {vendaAtual.desconto > 0 && (
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground">Desconto:</span>
                           <span className="text-destructive">- R$ {vendaAtual.desconto.toFixed(2)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between text-2xl font-bold">
+                      <div className="flex justify-between text-xl font-bold pt-1">
                         <span>Total:</span>
                         <span className="text-primary">R$ {total.toFixed(2)}</span>
                       </div>
@@ -712,7 +697,7 @@ export default function PDVPage() {
                       onClick={() => setDialogPagamento(true)}
                       disabled={!vendaAtual.funcionarioId}
                       size="lg"
-                      className="w-full gap-2 text-base font-bold"
+                      className="w-full gap-2 text-base font-bold h-11"
                     >
                       <Check className="h-5 w-5" />
                       Finalizar Venda (F9)
