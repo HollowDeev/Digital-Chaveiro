@@ -173,6 +173,62 @@ export function useClientes(lojaId?: string) {
 }
 
 /**
+ * Hook para buscar todos os funcionários da loja selecionada
+ * Busca dados completos da tabela lojas_usuarios incluindo nome, cargo, salário, etc.
+ */
+export function useFuncionarios(lojaId?: string) {
+  const [funcionarios, setFuncionarios] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    if (!lojaId) {
+      setFuncionarios([])
+      setLoading(false)
+      return
+    }
+
+    const fetchFuncionarios = async () => {
+      const supabase = createClient()
+      try {
+        // Buscar todos os usuários vinculados à loja com seus dados completos
+        const { data, error: err } = await supabase
+          .from("lojas_usuarios")
+          .select("*")
+          .eq("loja_id", lojaId)
+          .eq("ativo", true)
+          .order("created_at", { ascending: false })
+
+        if (err) throw err
+
+        // Mapear para estrutura de funcionário
+        const funcionariosMapeados = (data || []).map((fu: any) => ({
+          id: fu.usuario_id,
+          nome: fu.nome || `Usuário ${fu.usuario_id.substring(0, 8)}`,
+          email: fu.email || "",
+          telefone: fu.telefone || "",
+          cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
+          nivel_acesso: fu.nivel_acesso,
+          salario: fu.salario || 0,
+          dataAdmissao: fu.data_admissao || fu.created_at,
+          ativo: fu.ativo !== false,
+        }))
+
+        setFuncionarios(funcionariosMapeados)
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Erro ao buscar funcionários"))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchFuncionarios()
+  }, [lojaId])
+
+  return { funcionarios, loading, error }
+}
+
+/**
  * Hook para buscar todas as vendas da loja selecionada
  */
 export function useVendas(lojaId?: string) {
@@ -368,4 +424,101 @@ export function usePerdas(lojaId?: string) {
   }, [lojaId])
 
   return { perdas, loading, error }
+}
+
+/**
+ * Hook para buscar caixa aberto da loja selecionada
+ */
+export function useCaixaAberto(lojaId?: string) {
+  const [caixaAtual, setCaixaAtual] = useState<any | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchCaixa = async () => {
+    if (!lojaId) {
+      setCaixaAtual(null)
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      // Buscar caixa aberto
+      const { data: caixaData, error: caixaError } = await supabase
+        .from("caixas")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .eq("status", "aberto")
+        .order("data_abertura", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (caixaError && caixaError.code !== "PGRST116") throw caixaError
+
+      if (!caixaData) {
+        setCaixaAtual(null)
+        setLoading(false)
+        return
+      }
+
+      // Buscar movimentações do caixa
+      const { data: movimentacoesData, error: movError } = await supabase
+        .from("caixa_movimentacoes")
+        .select("*")
+        .eq("caixa_id", caixaData.id)
+        .order("data", { ascending: true })
+
+      if (movError) throw movError
+
+      // Buscar nome do funcionário de abertura
+      const { data: funcionarioData } = await supabase
+        .from("lojas_usuarios")
+        .select("nome")
+        .eq("usuario_id", caixaData.funcionario_abertura_id)
+        .eq("loja_id", lojaId)
+        .single()
+
+      // Mapear movimentações com nome do funcionário
+      const movimentacoesComNome = await Promise.all(
+        (movimentacoesData || []).map(async (mov: any) => {
+          const { data: funcMov } = await supabase
+            .from("lojas_usuarios")
+            .select("nome")
+            .eq("usuario_id", mov.funcionario_id)
+            .eq("loja_id", lojaId)
+            .single()
+
+          return {
+            id: mov.id,
+            tipo: mov.tipo as "entrada" | "saida",
+            categoria: mov.categoria,
+            descricao: mov.descricao,
+            valor: mov.valor,
+            funcionarioNome: funcMov?.nome || "Desconhecido",
+            data: mov.data,
+          }
+        })
+      )
+
+      setCaixaAtual({
+        id: caixaData.id,
+        status: caixaData.status,
+        valorAbertura: caixaData.valor_abertura,
+        dataAbertura: caixaData.data_abertura,
+        funcionarioAberturaNome: funcionarioData?.nome || "Desconhecido",
+        funcionarioAberturaId: caixaData.funcionario_abertura_id,
+        movimentacoes: movimentacoesComNome,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar caixa"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCaixa()
+  }, [lojaId])
+
+  return { caixaAtual, loading, error, refetch: fetchCaixa }
 }

@@ -22,15 +22,11 @@ const navItems = [
   { href: "/pdv", label: "PDV", icon: Receipt },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/estoque", label: "Estoque", icon: Package },
-  { href: "/vendas", label: "Vendas", icon: ShoppingCart },
-  { href: "/servicos", label: "Serviços", icon: Wrench },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/funcionarios", label: "Funcionários", icon: UserCircle },
-  { href: "/contas", label: "Contas", icon: Wallet },
   { href: "/caixa", label: "Caixa", icon: Wallet },
   { href: "/relatorios", label: "Relatórios", icon: FileText },
-  { href: "/loja/configuracao", label: "Loja", icon: Settings },
-  { href: "/conta/configuracao", label: "Conta", icon: UserCircle },
+  { href: "/configuracao", label: "Configurações", icon: Settings },
 ]
 
 export function Sidebar() {

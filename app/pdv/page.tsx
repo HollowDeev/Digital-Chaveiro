@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
-import { useProdutos, useServicos, useClientes } from "@/lib/hooks/useLojaData"
+import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto } from "@/lib/hooks/useLojaData"
 import { useStore } from "@/lib/store"
 import { ShoppingCart, Wrench, Plus, Trash2, DollarSign, Search, Minus, X, Check, CreditCard, Banknote, Smartphone, Percent, Package, Zap, TrendingUp, Users, Calendar } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -20,9 +20,12 @@ import { cn } from "@/lib/utils"
 export default function PDVPage() {
   // 1. Hooks e Store
   const [lojaId, setLojaId] = useState<string | undefined>()
+  const [userId, setUserId] = useState<string | undefined>()
   const { produtos } = useProdutos(lojaId)
   const { servicos } = useServicos(lojaId)
   const { clientes } = useClientes(lojaId)
+  const { funcionarios } = useFuncionarios(lojaId)
+  const { caixaAtual: caixaAbertoDB, refetch: refetchCaixa } = useCaixaAberto(lojaId)
 
   const {
     vendaAtual,
@@ -38,7 +41,6 @@ export default function PDVPage() {
     adicionarVendaPrazo,
     adicionarContaReceber,
     abrirCaixa,
-    funcionarios,
     caixaAtual
   } = useStore()
 
@@ -132,7 +134,7 @@ export default function PDVPage() {
     mostrarToast("✅ Caixa aberto com sucesso!")
   }
 
-  const handleFinalizarVenda = () => {
+  const handleFinalizarVenda = async () => {
     if (vendaAPrazo) {
       if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
         mostrarToast("⚠️ Selecione um cliente para venda a prazo!")
@@ -190,7 +192,49 @@ export default function PDVPage() {
       setVendaAPrazo(false)
       mostrarToast("✅ Venda a prazo registrada!")
     } else {
+      // Registrar venda normal
       finalizarVenda(formaPagamento)
+      
+      // Registrar movimentação no caixa se houver caixa aberto
+      if (caixaAbertoDB && lojaId && userId) {
+        try {
+          const supabase = createClient()
+          
+          // Determinar categoria baseada na forma de pagamento
+          const categoriaMap: Record<string, string> = {
+            dinheiro: "Venda - Dinheiro",
+            pix: "Venda - PIX",
+            cartao_credito: "Venda - Cartão Crédito",
+            cartao_debito: "Venda - Cartão Débito",
+            outros: "Venda - Outros"
+          }
+
+          const cliente = vendaAtual.clienteId && vendaAtual.clienteId !== "none" 
+            ? clientes.find(c => c.id === vendaAtual.clienteId)
+            : null
+
+          const descricao = cliente 
+            ? `Venda para ${cliente.nome} - ${vendaAtual.itens.length} item(ns)`
+            : `Venda - ${vendaAtual.itens.length} item(ns)`
+
+          await supabase.from("caixa_movimentacoes").insert({
+            caixa_id: caixaAbertoDB.id,
+            loja_id: lojaId,
+            tipo: "entrada",
+            categoria: categoriaMap[formaPagamento] || "Venda",
+            descricao: descricao,
+            valor: total,
+            funcionario_id: userId,
+          })
+
+          // Atualizar dados do caixa
+          refetchCaixa()
+        } catch (err) {
+          console.error("Erro ao registrar movimentação:", err)
+          // Não bloqueia a venda se houver erro no registro do caixa
+        }
+      }
+
       setDialogPagamento(false)
       mostrarToast("✅ Venda finalizada com sucesso!")
     }
@@ -202,6 +246,7 @@ export default function PDVPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setUserId(user.id)
       const { data: lojas } = await supabase.from("lojas").select("id").eq("dono_id", user.id).limit(1)
       if (lojas && lojas.length > 0) setLojaId(lojas[0].id)
     }

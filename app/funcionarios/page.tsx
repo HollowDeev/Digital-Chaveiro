@@ -7,14 +7,37 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { useFuncionarios } from "@/lib/hooks/useLojaData"
 import { UserCircle, Search, Mail, Phone, Eye } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 
 export default function FuncionariosPage() {
-  const { funcionarios } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { funcionarios } = useFuncionarios(lojaId)
   const [busca, setBusca] = useState("")
+
+  // Buscar loja selecionada do usuário
+  useEffect(() => {
+    const fetchLojaDoUsuario = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchLojaDoUsuario()
+  }, [])
 
   const funcionariosFiltrados = funcionarios.filter(
     (f) =>

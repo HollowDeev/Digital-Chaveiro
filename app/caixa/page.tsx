@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,35 +10,105 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
+import { useCaixaAberto, useFuncionarios } from "@/lib/hooks/useLojaData"
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react"
 
 export default function CaixaPage() {
-  const { caixaAtual, funcionarios, abrirCaixa, fecharCaixa } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+  const [userId, setUserId] = useState<string | undefined>()
+  const { caixaAtual, refetch } = useCaixaAberto(lojaId)
+  const { funcionarios } = useFuncionarios(lojaId)
+
   const [dialogAbrir, setDialogAbrir] = useState(false)
   const [dialogFechar, setDialogFechar] = useState(false)
   const [funcionarioId, setFuncionarioId] = useState("")
   const [valorAbertura, setValorAbertura] = useState(0)
+  const [loading, setLoading] = useState(false)
 
-  const handleAbrirCaixa = () => {
-    if (!funcionarioId) {
+  // Buscar loja e usuário
+  useEffect(() => {
+    const fetchData = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      setUserId(user.id)
+
+      const { data: lojas } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .limit(1)
+
+      if (lojas && lojas.length > 0) {
+        setLojaId(lojas[0].id)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  const handleAbrirCaixa = async () => {
+    if (!funcionarioId || !lojaId || !userId) {
       alert("Selecione um funcionário")
       return
     }
-    abrirCaixa(funcionarioId, valorAbertura)
-    setDialogAbrir(false)
-    setFuncionarioId("")
-    setValorAbertura(0)
+
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("caixas").insert({
+        loja_id: lojaId,
+        funcionario_abertura_id: userId,
+        valor_abertura: valorAbertura,
+        status: "aberto",
+      })
+
+      if (error) throw error
+
+      setDialogAbrir(false)
+      setFuncionarioId("")
+      setValorAbertura(0)
+      refetch()
+    } catch (err: any) {
+      alert(err.message || "Erro ao abrir caixa")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleFecharCaixa = () => {
-    if (!funcionarioId) {
+  const handleFecharCaixa = async () => {
+    if (!funcionarioId || !caixaAtual || !userId) {
       alert("Selecione um funcionário")
       return
     }
-    fecharCaixa(funcionarioId)
-    setDialogFechar(false)
-    setFuncionarioId("")
+
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const saldoFinal = (caixaAtual.valorAbertura || 0) + saldoCaixa
+
+      const { error } = await supabase
+        .from("caixas")
+        .update({
+          status: "fechado",
+          funcionario_fechamento_id: userId,
+          valor_fechamento: saldoFinal,
+          data_fechamento: new Date().toISOString(),
+        })
+        .eq("id", caixaAtual.id)
+
+      if (error) throw error
+
+      setDialogFechar(false)
+      setFuncionarioId("")
+      refetch()
+    } catch (err: any) {
+      alert(err.message || "Erro ao fechar caixa")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const saldoCaixa =
