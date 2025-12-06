@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
-import { useProdutos, useVendas, useContasPagar, useContasReceber } from "@/lib/hooks/useLojaData"
+import { useProdutos, useVendas, useContasPagar, useContasReceber, useCaixaAberto, useClientes } from "@/lib/hooks/useLojaData"
 import {
   LayoutDashboard,
   TrendingUp,
@@ -24,6 +24,8 @@ export default function DashboardPage() {
   const { vendas } = useVendas(lojaId)
   const { contas: contasPagar } = useContasPagar(lojaId)
   const { contas: contasReceber } = useContasReceber(lojaId)
+  const { caixaAtual } = useCaixaAberto(lojaId)
+  const { clientes } = useClientes(lojaId)
 
   // Buscar loja selecionada do usuário
   useEffect(() => {

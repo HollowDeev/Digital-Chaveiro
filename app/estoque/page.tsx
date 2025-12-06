@@ -23,10 +23,10 @@ export default function GestaoInventarioPage() {
   const { produtos, refetch: refetchProdutos } = useProdutos(lojaId)
   const { servicos, refetch: refetchServicos } = useServicos(lojaId)
   const { categoriasPerdas, perdas, adicionarPerda, adicionarCategoriaPerda, funcionarios } = useStore()
-  
+
   const [busca, setBusca] = useState("")
   const [activeTab, setActiveTab] = useState("produtos")
-  
+
   // Estados dos Dialogs
   const [dialogNovoProduto, setDialogNovoProduto] = useState(false)
   const [dialogNovoServico, setDialogNovoServico] = useState(false)
@@ -34,7 +34,7 @@ export default function GestaoInventarioPage() {
   const [dialogNovaPerda, setDialogNovaPerda] = useState(false)
   const [dialogEditarProduto, setDialogEditarProduto] = useState(false)
   const [dialogEditarServico, setDialogEditarServico] = useState(false)
-  
+
   // Estados de Formulários
   const [novoProduto, setNovoProduto] = useState({
     nome: "",
@@ -45,7 +45,7 @@ export default function GestaoInventarioPage() {
     estoque: "0",
     descricao: ""
   })
-  
+
   const [novoServico, setNovoServico] = useState({
     nome: "",
     codigo: "",
@@ -54,14 +54,14 @@ export default function GestaoInventarioPage() {
     duracao: "",
     descricao: ""
   })
-  
+
   const [entradaEstoque, setEntradaEstoque] = useState({
     produtoId: "",
     quantidade: "",
     valorPago: "",
     valorVenda: ""
   })
-  
+
   const [novaPerda, setNovaPerda] = useState({
     produtoId: "",
     quantidade: "",
@@ -69,7 +69,7 @@ export default function GestaoInventarioPage() {
     categoriaId: "",
     observacoes: ""
   })
-  
+
   const [produtoEditando, setProdutoEditando] = useState<any>(null)
   const [servicoEditando, setServicoEditando] = useState<any>(null)
   const [showToast, setShowToast] = useState(false)
@@ -81,8 +81,29 @@ export default function GestaoInventarioPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: lojas } = await supabase.from("lojas").select("id").eq("dono_id", user.id).limit(1)
-      if (lojas && lojas.length > 0) setLojaId(lojas[0].id)
+
+      // Tentar buscar loja onde é dono
+      let { data: lojas } = await supabase.from("lojas").select("id").eq("dono_id", user.id).limit(1)
+
+      // Se não encontrou, buscar através de lojas_usuarios
+      if (!lojas || lojas.length === 0) {
+        const { data: lojaUsuario } = await supabase
+          .from("lojas_usuarios")
+          .select("loja_id")
+          .eq("usuario_id", user.id)
+          .limit(1)
+
+        if (lojaUsuario && lojaUsuario.length > 0) {
+          lojas = [{ id: lojaUsuario[0].loja_id }]
+        }
+      }
+
+      if (lojas && lojas.length > 0) {
+        console.log("Loja ID encontrado:", lojas[0].id) // Debug
+        setLojaId(lojas[0].id)
+      } else {
+        console.log("Nenhuma loja encontrada para o usuário") // Debug
+      }
     }
     fetchLoja()
   }, [])
@@ -312,13 +333,12 @@ export default function GestaoInventarioPage() {
     )
   )
 
-  const servicosFiltrados = servicos.filter(s =>
-    s.ativo && (
-      s.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      s.codigo.toLowerCase().includes(busca.toLowerCase()) ||
-      s.categoria.toLowerCase().includes(busca.toLowerCase())
-    )
-  )
+  console.log("Total de serviços:", servicos.length, servicos) // Debug
+  const servicosFiltrados = servicos.filter(s => {
+    const matchBusca = s.nome.toLowerCase().includes(busca.toLowerCase()) ||
+      s.codigo.toLowerCase().includes(busca.toLowerCase())
+    return matchBusca
+  })
 
   // Métricas
   const produtosBaixoEstoque = produtos.filter(p => p.estoque < 20 && p.ativo).length
@@ -420,7 +440,7 @@ export default function GestaoInventarioPage() {
                 className="pl-10"
               />
             </div>
-            
+
             <div className="flex gap-2">
               <Dialog open={dialogNovoProduto} onOpenChange={setDialogNovoProduto}>
                 <DialogTrigger asChild>
@@ -440,7 +460,7 @@ export default function GestaoInventarioPage() {
                         <Input
                           id="nome-produto"
                           value={novoProduto.nome}
-                          onChange={(e) => setNovoProduto({...novoProduto, nome: e.target.value})}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, nome: e.target.value })}
                           placeholder="Nome do produto"
                         />
                       </div>
@@ -449,7 +469,7 @@ export default function GestaoInventarioPage() {
                         <Input
                           id="codigo-produto"
                           value={novoProduto.codigo}
-                          onChange={(e) => setNovoProduto({...novoProduto, codigo: e.target.value})}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, codigo: e.target.value })}
                           placeholder="SKU ou código de barras"
                         />
                       </div>
@@ -461,7 +481,7 @@ export default function GestaoInventarioPage() {
                         <Input
                           id="categoria-produto"
                           value={novoProduto.categoria}
-                          onChange={(e) => setNovoProduto({...novoProduto, categoria: e.target.value})}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, categoria: e.target.value })}
                           placeholder="Ex: Chaves, Cópias..."
                         />
                       </div>
@@ -472,7 +492,7 @@ export default function GestaoInventarioPage() {
                           type="number"
                           min="0"
                           value={novoProduto.estoque}
-                          onChange={(e) => setNovoProduto({...novoProduto, estoque: e.target.value})}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, estoque: e.target.value })}
                         />
                       </div>
                     </div>
@@ -486,7 +506,7 @@ export default function GestaoInventarioPage() {
                           min="0"
                           step="0.01"
                           value={novoProduto.custoUnitario}
-                          onChange={(e) => setNovoProduto({...novoProduto, custoUnitario: e.target.value})}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, custoUnitario: e.target.value })}
                           placeholder="0.00"
                         />
                       </div>
@@ -498,7 +518,7 @@ export default function GestaoInventarioPage() {
                           min="0"
                           step="0.01"
                           value={novoProduto.preco}
-                          onChange={(e) => setNovoProduto({...novoProduto, preco: e.target.value})}
+                          onChange={(e) => setNovoProduto({ ...novoProduto, preco: e.target.value })}
                           placeholder="0.00"
                         />
                       </div>
@@ -523,7 +543,7 @@ export default function GestaoInventarioPage() {
                       <Textarea
                         id="descricao-produto"
                         value={novoProduto.descricao}
-                        onChange={(e) => setNovoProduto({...novoProduto, descricao: e.target.value})}
+                        onChange={(e) => setNovoProduto({ ...novoProduto, descricao: e.target.value })}
                         placeholder="Detalhes adicionais sobre o produto..."
                         rows={3}
                       />
@@ -558,7 +578,7 @@ export default function GestaoInventarioPage() {
                         <Input
                           id="nome-servico"
                           value={novoServico.nome}
-                          onChange={(e) => setNovoServico({...novoServico, nome: e.target.value})}
+                          onChange={(e) => setNovoServico({ ...novoServico, nome: e.target.value })}
                           placeholder="Nome do serviço"
                         />
                       </div>
@@ -567,7 +587,7 @@ export default function GestaoInventarioPage() {
                         <Input
                           id="codigo-servico"
                           value={novoServico.codigo}
-                          onChange={(e) => setNovoServico({...novoServico, codigo: e.target.value})}
+                          onChange={(e) => setNovoServico({ ...novoServico, codigo: e.target.value })}
                           placeholder="Código identificador"
                         />
                       </div>
@@ -579,7 +599,7 @@ export default function GestaoInventarioPage() {
                         <Input
                           id="categoria-servico"
                           value={novoServico.categoria}
-                          onChange={(e) => setNovoServico({...novoServico, categoria: e.target.value})}
+                          onChange={(e) => setNovoServico({ ...novoServico, categoria: e.target.value })}
                           placeholder="Ex: Chaveiro, Conserto..."
                         />
                       </div>
@@ -590,7 +610,7 @@ export default function GestaoInventarioPage() {
                           type="number"
                           min="0"
                           value={novoServico.duracao}
-                          onChange={(e) => setNovoServico({...novoServico, duracao: e.target.value})}
+                          onChange={(e) => setNovoServico({ ...novoServico, duracao: e.target.value })}
                           placeholder="30"
                         />
                       </div>
@@ -604,7 +624,7 @@ export default function GestaoInventarioPage() {
                         min="0"
                         step="0.01"
                         value={novoServico.preco}
-                        onChange={(e) => setNovoServico({...novoServico, preco: e.target.value})}
+                        onChange={(e) => setNovoServico({ ...novoServico, preco: e.target.value })}
                         placeholder="0.00"
                       />
                     </div>
@@ -614,7 +634,7 @@ export default function GestaoInventarioPage() {
                       <Textarea
                         id="descricao-servico"
                         value={novoServico.descricao}
-                        onChange={(e) => setNovoServico({...novoServico, descricao: e.target.value})}
+                        onChange={(e) => setNovoServico({ ...novoServico, descricao: e.target.value })}
                         placeholder="Detalhes sobre o serviço..."
                         rows={3}
                       />
@@ -645,7 +665,7 @@ export default function GestaoInventarioPage() {
                   <div className="grid gap-4 py-4">
                     <div className="space-y-2">
                       <Label>Produto *</Label>
-                      <Select value={entradaEstoque.produtoId} onValueChange={(v) => setEntradaEstoque({...entradaEstoque, produtoId: v})}>
+                      <Select value={entradaEstoque.produtoId} onValueChange={(v) => setEntradaEstoque({ ...entradaEstoque, produtoId: v })}>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o produto" />
                         </SelectTrigger>
@@ -666,7 +686,7 @@ export default function GestaoInventarioPage() {
                         type="number"
                         min="1"
                         value={entradaEstoque.quantidade}
-                        onChange={(e) => setEntradaEstoque({...entradaEstoque, quantidade: e.target.value})}
+                        onChange={(e) => setEntradaEstoque({ ...entradaEstoque, quantidade: e.target.value })}
                       />
                     </div>
 
@@ -679,7 +699,7 @@ export default function GestaoInventarioPage() {
                           min="0"
                           step="0.01"
                           value={entradaEstoque.valorPago}
-                          onChange={(e) => setEntradaEstoque({...entradaEstoque, valorPago: e.target.value})}
+                          onChange={(e) => setEntradaEstoque({ ...entradaEstoque, valorPago: e.target.value })}
                           placeholder="0.00"
                         />
                       </div>
@@ -691,7 +711,7 @@ export default function GestaoInventarioPage() {
                           min="0"
                           step="0.01"
                           value={entradaEstoque.valorVenda}
-                          onChange={(e) => setEntradaEstoque({...entradaEstoque, valorVenda: e.target.value})}
+                          onChange={(e) => setEntradaEstoque({ ...entradaEstoque, valorVenda: e.target.value })}
                           placeholder="0.00"
                         />
                       </div>
@@ -931,7 +951,7 @@ export default function GestaoInventarioPage() {
                     <div className="grid gap-4 py-4">
                       <div className="space-y-2">
                         <Label>Produto *</Label>
-                        <Select value={novaPerda.produtoId} onValueChange={(v) => setNovaPerda({...novaPerda, produtoId: v})}>
+                        <Select value={novaPerda.produtoId} onValueChange={(v) => setNovaPerda({ ...novaPerda, produtoId: v })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione o produto" />
                           </SelectTrigger>
@@ -952,13 +972,13 @@ export default function GestaoInventarioPage() {
                           type="number"
                           min="1"
                           value={novaPerda.quantidade}
-                          onChange={(e) => setNovaPerda({...novaPerda, quantidade: e.target.value})}
+                          onChange={(e) => setNovaPerda({ ...novaPerda, quantidade: e.target.value })}
                         />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Funcionário Responsável *</Label>
-                        <Select value={novaPerda.funcionarioId} onValueChange={(v) => setNovaPerda({...novaPerda, funcionarioId: v})}>
+                        <Select value={novaPerda.funcionarioId} onValueChange={(v) => setNovaPerda({ ...novaPerda, funcionarioId: v })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione o funcionário" />
                           </SelectTrigger>
@@ -974,7 +994,7 @@ export default function GestaoInventarioPage() {
 
                       <div className="space-y-2">
                         <Label>Categoria *</Label>
-                        <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({...novaPerda, categoriaId: v})}>
+                        <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({ ...novaPerda, categoriaId: v })}>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione a categoria" />
                           </SelectTrigger>
@@ -982,7 +1002,7 @@ export default function GestaoInventarioPage() {
                             {categoriasPerdas.filter(c => c.ativo).map(cat => (
                               <SelectItem key={cat.id} value={cat.id}>
                                 <div className="flex items-center gap-2">
-                                  <div className="h-3 w-3 rounded-full" style={{backgroundColor: cat.cor}} />
+                                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.cor }} />
                                   {cat.nome}
                                 </div>
                               </SelectItem>
@@ -996,7 +1016,7 @@ export default function GestaoInventarioPage() {
                         <Textarea
                           id="observacoes-perda"
                           value={novaPerda.observacoes}
-                          onChange={(e) => setNovaPerda({...novaPerda, observacoes: e.target.value})}
+                          onChange={(e) => setNovaPerda({ ...novaPerda, observacoes: e.target.value })}
                           placeholder="Detalhes adicionais..."
                           rows={3}
                         />
@@ -1070,14 +1090,14 @@ export default function GestaoInventarioPage() {
                   <Label>Nome *</Label>
                   <Input
                     value={produtoEditando.nome}
-                    onChange={(e) => setProdutoEditando({...produtoEditando, nome: e.target.value})}
+                    onChange={(e) => setProdutoEditando({ ...produtoEditando, nome: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Código *</Label>
                   <Input
                     value={produtoEditando.codigo}
-                    onChange={(e) => setProdutoEditando({...produtoEditando, codigo: e.target.value})}
+                    onChange={(e) => setProdutoEditando({ ...produtoEditando, codigo: e.target.value })}
                   />
                 </div>
               </div>
@@ -1087,7 +1107,7 @@ export default function GestaoInventarioPage() {
                   <Label>Categoria</Label>
                   <Input
                     value={produtoEditando.categoria}
-                    onChange={(e) => setProdutoEditando({...produtoEditando, categoria: e.target.value})}
+                    onChange={(e) => setProdutoEditando({ ...produtoEditando, categoria: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1095,7 +1115,7 @@ export default function GestaoInventarioPage() {
                   <Input
                     type="number"
                     value={produtoEditando.estoque}
-                    onChange={(e) => setProdutoEditando({...produtoEditando, estoque: Number.parseInt(e.target.value)})}
+                    onChange={(e) => setProdutoEditando({ ...produtoEditando, estoque: Number.parseInt(e.target.value) })}
                   />
                 </div>
               </div>
@@ -1107,7 +1127,7 @@ export default function GestaoInventarioPage() {
                     type="number"
                     step="0.01"
                     value={produtoEditando.custoUnitario}
-                    onChange={(e) => setProdutoEditando({...produtoEditando, custoUnitario: Number.parseFloat(e.target.value)})}
+                    onChange={(e) => setProdutoEditando({ ...produtoEditando, custoUnitario: Number.parseFloat(e.target.value) })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1116,7 +1136,7 @@ export default function GestaoInventarioPage() {
                     type="number"
                     step="0.01"
                     value={produtoEditando.preco}
-                    onChange={(e) => setProdutoEditando({...produtoEditando, preco: Number.parseFloat(e.target.value)})}
+                    onChange={(e) => setProdutoEditando({ ...produtoEditando, preco: Number.parseFloat(e.target.value) })}
                   />
                 </div>
               </div>
@@ -1125,7 +1145,7 @@ export default function GestaoInventarioPage() {
                 <Label>Descrição</Label>
                 <Textarea
                   value={produtoEditando.descricao || ""}
-                  onChange={(e) => setProdutoEditando({...produtoEditando, descricao: e.target.value})}
+                  onChange={(e) => setProdutoEditando({ ...produtoEditando, descricao: e.target.value })}
                   rows={3}
                 />
               </div>
@@ -1155,14 +1175,14 @@ export default function GestaoInventarioPage() {
                   <Label>Nome *</Label>
                   <Input
                     value={servicoEditando.nome}
-                    onChange={(e) => setServicoEditando({...servicoEditando, nome: e.target.value})}
+                    onChange={(e) => setServicoEditando({ ...servicoEditando, nome: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Código *</Label>
                   <Input
                     value={servicoEditando.codigo}
-                    onChange={(e) => setServicoEditando({...servicoEditando, codigo: e.target.value})}
+                    onChange={(e) => setServicoEditando({ ...servicoEditando, codigo: e.target.value })}
                   />
                 </div>
               </div>
@@ -1172,7 +1192,7 @@ export default function GestaoInventarioPage() {
                   <Label>Categoria</Label>
                   <Input
                     value={servicoEditando.categoria}
-                    onChange={(e) => setServicoEditando({...servicoEditando, categoria: e.target.value})}
+                    onChange={(e) => setServicoEditando({ ...servicoEditando, categoria: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1180,7 +1200,7 @@ export default function GestaoInventarioPage() {
                   <Input
                     type="number"
                     value={servicoEditando.duracao || ""}
-                    onChange={(e) => setServicoEditando({...servicoEditando, duracao: Number.parseInt(e.target.value) || null})}
+                    onChange={(e) => setServicoEditando({ ...servicoEditando, duracao: Number.parseInt(e.target.value) || null })}
                   />
                 </div>
               </div>
@@ -1191,7 +1211,7 @@ export default function GestaoInventarioPage() {
                   type="number"
                   step="0.01"
                   value={servicoEditando.preco}
-                  onChange={(e) => setServicoEditando({...servicoEditando, preco: Number.parseFloat(e.target.value)})}
+                  onChange={(e) => setServicoEditando({ ...servicoEditando, preco: Number.parseFloat(e.target.value) })}
                 />
               </div>
 
@@ -1199,7 +1219,7 @@ export default function GestaoInventarioPage() {
                 <Label>Descrição</Label>
                 <Textarea
                   value={servicoEditando.descricao || ""}
-                  onChange={(e) => setServicoEditando({...servicoEditando, descricao: e.target.value})}
+                  onChange={(e) => setServicoEditando({ ...servicoEditando, descricao: e.target.value })}
                   rows={3}
                 />
               </div>

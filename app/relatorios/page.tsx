@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
@@ -18,12 +19,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
-import { useContasPagar, useContasReceber } from "@/lib/hooks/useLojaData"
-import { useStore } from "@/lib/store"
+import { useContasPagar, useContasReceber, useVendasComFiltro, useProdutos, usePerdas, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
 import {
   FileText,
   Download,
@@ -41,30 +40,19 @@ import {
   AlertTriangle,
   PackageX,
 } from "lucide-react"
-import type { ContaPagar, CategoriaDespesa, Perda, CategoriaPerda } from "@/lib/types"
 
 export default function RelatoriosPage() {
   const [lojaId, setLojaId] = useState<string | undefined>()
+  const [filtroData, setFiltroData] = useState<string>("hoje")
+  const [dataInicio, setDataInicio] = useState<Date | undefined>()
+  const [dataFim, setDataFim] = useState<Date | undefined>()
+
   const { contas: contasPagar } = useContasPagar(lojaId)
   const { contas: contasReceber } = useContasReceber(lojaId)
-
-  const {
-    vendas,
-    produtos,
-    clientes,
-    funcionarios,
-    caixaAtual,
-    adicionarContaPagar,
-    adicionarCategoriaDespesa,
-    adicionarCategoriaPerda,
-    adicionarPerda,
-    pagarConta,
-    pagarParcelaVendaPrazo,
-    categoriasDespesas,
-    perdas,
-    categoriasPerdas,
-    vendasPrazo,
-  } = useStore()
+  const { vendas: vendasDB, loading: loadingVendas } = useVendasComFiltro(lojaId, dataInicio, dataFim)
+  const { produtos } = useProdutos(lojaId)
+  const { perdas, loading: loadingPerdas } = usePerdas(lojaId, dataInicio, dataFim)
+  const { categorias: categoriasPerdas } = useCategoriasPerdas(lojaId)
 
   // Buscar loja selecionada do usuário
   useEffect(() => {
@@ -85,6 +73,34 @@ export default function RelatoriosPage() {
     fetchLojaDoUsuario()
   }, [])
 
+  // Aplicar filtros de data rápidos
+  useEffect(() => {
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+
+    switch (filtroData) {
+      case "hoje":
+        setDataInicio(hoje)
+        setDataFim(new Date())
+        break
+      case "semana":
+        const inicioSemana = new Date(hoje)
+        inicioSemana.setDate(hoje.getDate() - 7)
+        setDataInicio(inicioSemana)
+        setDataFim(new Date())
+        break
+      case "mes":
+        const inicioMes = new Date(hoje)
+        inicioMes.setDate(hoje.getDate() - 30)
+        setDataInicio(inicioMes)
+        setDataFim(new Date())
+        break
+      case "custom":
+        // Não altera as datas customizadas
+        break
+    }
+  }, [filtroData])
+
   // Estados para contas
   const [openNovaConta, setOpenNovaConta] = useState(false)
   const [openNovaCategoria, setOpenNovaCategoria] = useState(false)
@@ -92,51 +108,115 @@ export default function RelatoriosPage() {
   const [openNovaPerda, setOpenNovaPerda] = useState(false)
   const [busca, setBusca] = useState("")
 
-  // Estatísticas gerais
-  const totalVendas = vendas.filter((v) => v.status === "concluida").length
-  const receitaTotal = vendas.filter((v) => v.status === "concluida").reduce((acc, v) => acc + v.total, 0)
+  // Função para marcar conta como paga
+  const pagarConta = async (contaId: string) => {
+    if (!lojaId) return
 
-  const produtoMaisVendido = produtos.reduce((prev, current) => {
-    const vendasProduto = vendas.filter((v) => v.itens.some((i) => i.id === current.id && i.tipo === "produto")).length
-    const vendasPrev = vendas.filter((v) => v.itens.some((i) => i.id === prev.id && i.tipo === "produto")).length
-    return vendasProduto > vendasPrev ? current : prev
-  }, produtos[0])
+    const supabase = createClient()
+    try {
+      const { error } = await supabase
+        .from("contas_pagar")
+        .update({
+          status: "paga",
+          data_pagamento: new Date().toISOString()
+        })
+        .eq("id", contaId)
 
-  const funcionarioDestaque = funcionarios.reduce((prev, current) => {
-    const vendasFunc = vendas.filter((v) => v.funcionarioId === current.id).length
-    const vendasPrev = vendas.filter((v) => v.funcionarioId === prev.id).length
-    return vendasFunc > vendasPrev ? current : prev
-  }, funcionarios[0])
+      if (error) throw error
 
-  const formasPagamento = {
-    dinheiro: vendas.filter((v) => v.formaPagamento === "dinheiro" && v.status === "concluida").length,
-    pix: vendas.filter((v) => v.formaPagamento === "pix" && v.status === "concluida").length,
-    cartao_credito: vendas.filter((v) => v.formaPagamento === "cartao_credito" && v.status === "concluida").length,
-    cartao_debito: vendas.filter((v) => v.formaPagamento === "cartao_debito" && v.status === "concluida").length,
-    outros: vendas.filter((v) => v.formaPagamento === "outros" && v.status === "concluida").length,
+      // Refetch contas
+      window.location.reload()
+    } catch (err) {
+      console.error("Erro ao pagar conta:", err)
+      alert("Erro ao pagar conta")
+    }
   }
 
-  const despesasPagas = contasPagar.filter((c) => c.status === "paga").reduce((acc, c) => acc + c.valor, 0)
-  const despesasPendentes = contasPagar.filter((c) => c.status !== "paga").reduce((acc, c) => acc + c.valor, 0)
-  const receitasRecebidas = contasReceber.filter((c) => c.status === "recebida").reduce((acc, c) => acc + c.valor, 0)
-  const receitasPendentes = contasReceber.filter((c) => c.status !== "recebida").reduce((acc, c) => acc + c.valor, 0)
-  const vendasPrazoRecebidas = vendasPrazo.reduce((acc, v) => acc + v.valorPago, 0)
-  const vendasPrazoPendentes = vendasPrazo.reduce((acc, v) => acc + v.valorRestante, 0)
+  // Estatísticas gerais (usando vendasDB do banco de dados)
+  const totalVendas = vendasDB?.filter((v) => v.status === "concluida").length || 0
+  const receitaTotal = vendasDB?.filter((v) => v.status === "concluida").reduce((acc, v) => acc + v.total, 0) || 0
 
-  const totalPagar = contasPagar.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0)
-  const totalReceberPendente = contasReceber.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0)
-  const totalPerdas = perdas.reduce((acc, p) => acc + p.custoTotal, 0)
+  // Produto mais vendido (por quantidade)
+  const produtoMaisVendido = useMemo(() => {
+    if (!vendasDB || !produtos || produtos.length === 0) return null
 
-  const lucroLiquido = receitaTotal + receitasRecebidas + vendasPrazoRecebidas - despesasPagas
+    const contagemProdutos = new Map<string, { produto: any; quantidade: number }>()
+
+    vendasDB.forEach((venda) => {
+      venda.itens.forEach((item) => {
+        if (item.tipo === "produto") {
+          const atual = contagemProdutos.get(item.id) || { produto: item, quantidade: 0 }
+          contagemProdutos.set(item.id, {
+            produto: item,
+            quantidade: atual.quantidade + item.quantidade,
+          })
+        }
+      })
+    })
+
+    let maisVendido: { produto: any; quantidade: number } | null = null
+    contagemProdutos.forEach((value) => {
+      if (!maisVendido || value.quantidade > maisVendido.quantidade) {
+        maisVendido = value
+      }
+    })
+
+    return maisVendido
+  }, [vendasDB, produtos])
+
+  // Funcionário destaque (por número de vendas)
+  const funcionarioDestaque = useMemo(() => {
+    if (!vendasDB || vendasDB.length === 0) return null
+
+    const vendasPorFuncionario = new Map<string, { nome: string; count: number }>()
+
+    vendasDB.forEach((venda) => {
+      if (venda.funcionario_id) {
+        const atual = vendasPorFuncionario.get(venda.funcionario_id) || { nome: "Funcionário", count: 0 }
+        vendasPorFuncionario.set(venda.funcionario_id, {
+          ...atual,
+          count: atual.count + 1,
+        })
+      }
+    })
+
+    let destaque: { nome: string; count: number } | null = null
+    vendasPorFuncionario.forEach((value) => {
+      if (!destaque || value.count > destaque.count) {
+        destaque = value
+      }
+    })
+
+    return destaque
+  }, [vendasDB])
+
+  const formasPagamento = {
+    dinheiro: vendasDB?.filter((v) => v.forma_pagamento === "dinheiro" && v.status === "concluida").length || 0,
+    pix: vendasDB?.filter((v) => v.forma_pagamento === "pix" && v.status === "concluida").length || 0,
+    cartao_credito: vendasDB?.filter((v) => v.forma_pagamento === "cartao_credito" && v.status === "concluida").length || 0,
+    cartao_debito: vendasDB?.filter((v) => v.forma_pagamento === "cartao_debito" && v.status === "concluida").length || 0,
+    outros: vendasDB?.filter((v) => v.forma_pagamento === "outros" && v.status === "concluida").length || 0,
+  }
+
+  const despesasPagas = contasPagar?.filter((c) => c.status === "paga").reduce((acc, c) => acc + c.valor, 0) || 0
+  const despesasPendentes = contasPagar?.filter((c) => c.status !== "paga").reduce((acc, c) => acc + c.valor, 0) || 0
+  const receitasRecebidas = contasReceber?.filter((c) => c.status === "recebida").reduce((acc, c) => acc + c.valor, 0) || 0
+  const receitasPendentes = contasReceber?.filter((c) => c.status !== "recebida").reduce((acc, c) => acc + c.valor, 0) || 0
+
+  const totalPagar = contasPagar?.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0) || 0
+  const totalReceberPendente = contasReceber?.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0) || 0
+  const totalPerdas = perdas?.reduce((acc, p) => acc + p.custo_total, 0) || 0
+
+  const lucroLiquido = receitaTotal + receitasRecebidas - despesasPagas - totalPerdas
 
   // Filtros para contas
-  const contasPagarFiltradas = contasPagar.filter(
+  const contasPagarFiltradas = contasPagar?.filter(
     (c) => c.descricao.toLowerCase().includes(busca.toLowerCase()) || c.categoria?.toLowerCase().includes(busca.toLowerCase())
-  )
+  ) || []
 
-  const contasReceberFiltradas = contasReceber.filter(
+  const contasReceberFiltradas = contasReceber?.filter(
     (c) => c.descricao.toLowerCase().includes(busca.toLowerCase()) || c.origem?.toLowerCase().includes(busca.toLowerCase())
-  )
+  ) || []
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -164,6 +244,54 @@ export default function RelatoriosPage() {
 
             {/* Tab Dashboard */}
             <TabsContent value="dashboard" className="space-y-4 lg:space-y-6 mt-4">
+              {/* Filtros de Data */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base lg:text-lg">Filtros de Período</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <Label htmlFor="filtro-rapido">Filtro Rápido</Label>
+                      <Select value={filtroData} onValueChange={setFiltroData}>
+                        <SelectTrigger id="filtro-rapido">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hoje">Hoje</SelectItem>
+                          <SelectItem value="semana">Últimos 7 dias</SelectItem>
+                          <SelectItem value="mes">Último mês</SelectItem>
+                          <SelectItem value="custom">Personalizado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {filtroData === "custom" && (
+                      <>
+                        <div>
+                          <Label htmlFor="data-inicio">Data Início</Label>
+                          <Input
+                            id="data-inicio"
+                            type="date"
+                            value={dataInicio?.toISOString().split("T")[0] || ""}
+                            onChange={(e) => setDataInicio(e.target.value ? new Date(e.target.value) : undefined)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="data-fim">Data Fim</Label>
+                          <Input
+                            id="data-fim"
+                            type="date"
+                            value={dataFim?.toISOString().split("T")[0] || ""}
+                            onChange={(e) => setDataFim(e.target.value ? new Date(e.target.value) : undefined)}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Métricas Principais */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
                 <Card className="overflow-hidden">
@@ -174,7 +302,9 @@ export default function RelatoriosPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-foreground">{totalVendas}</div>
+                    <div className="text-3xl font-bold text-foreground">
+                      {loadingVendas ? "..." : totalVendas}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -186,7 +316,9 @@ export default function RelatoriosPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-foreground">R$ {receitaTotal.toFixed(2)}</div>
+                    <div className="text-3xl font-bold text-foreground">
+                      {loadingVendas ? "..." : `R$ ${receitaTotal.toFixed(2)}`}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -194,11 +326,18 @@ export default function RelatoriosPage() {
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                       <Package className="h-4 w-4" />
-                      Produtos Ativos
+                      Produto Mais Vendido
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-foreground">{produtos.filter((p) => p.ativo).length}</div>
+                    <div className="text-lg font-bold text-foreground">
+                      {loadingVendas ? "..." : produtoMaisVendido ? produtoMaisVendido.produto.nome : "N/A"}
+                    </div>
+                    {produtoMaisVendido && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {produtoMaisVendido.quantidade} unidades vendidas
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -206,11 +345,18 @@ export default function RelatoriosPage() {
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                       <TrendingUp className="h-4 w-4" />
-                      Clientes
+                      Funcionário Destaque
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-foreground">{clientes.length}</div>
+                    <div className="text-lg font-bold text-foreground">
+                      {loadingVendas ? "..." : funcionarioDestaque ? funcionarioDestaque.nome : "N/A"}
+                    </div>
+                    {funcionarioDestaque && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {funcionarioDestaque.count} vendas realizadas
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -250,22 +396,40 @@ export default function RelatoriosPage() {
                     <div>
                       <p className="text-xs font-medium text-muted-foreground lg:text-sm">Produto Mais Vendido</p>
                       <div className="mt-2 rounded-lg bg-accent/10 p-3">
-                        <p className="text-sm font-medium text-foreground lg:text-base break-words">
-                          {produtoMaisVendido?.nome}
-                        </p>
-                        <p className="text-xs text-muted-foreground lg:text-sm">R$ {produtoMaisVendido?.preco.toFixed(2)}</p>
+                        {loadingVendas ? (
+                          <p className="text-sm text-muted-foreground">Carregando...</p>
+                        ) : produtoMaisVendido ? (
+                          <>
+                            <p className="text-sm font-medium text-foreground lg:text-base wrap-break-word">
+                              {produtoMaisVendido.produto.nome}
+                            </p>
+                            <p className="text-xs text-muted-foreground lg:text-sm">
+                              {produtoMaisVendido.quantidade} unidades vendidas
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Nenhum produto vendido</p>
+                        )}
                       </div>
                     </div>
 
                     <div>
                       <p className="text-xs font-medium text-muted-foreground lg:text-sm">Funcionário Destaque</p>
                       <div className="mt-2 rounded-lg bg-primary/10 p-3">
-                        <p className="text-sm font-medium text-foreground lg:text-base break-words">
-                          {funcionarioDestaque?.nome}
-                        </p>
-                        <p className="text-xs text-muted-foreground lg:text-sm">
-                          {vendas.filter((v) => v.funcionarioId === funcionarioDestaque?.id).length} vendas realizadas
-                        </p>
+                        {loadingVendas ? (
+                          <p className="text-sm text-muted-foreground">Carregando...</p>
+                        ) : funcionarioDestaque ? (
+                          <>
+                            <p className="text-sm font-medium text-foreground lg:text-base wrap-break-word">
+                              {funcionarioDestaque.nome}
+                            </p>
+                            <p className="text-xs text-muted-foreground lg:text-sm">
+                              {funcionarioDestaque.count} vendas realizadas
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Nenhuma venda registrada</p>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -285,7 +449,7 @@ export default function RelatoriosPage() {
                         <p className="text-xs text-muted-foreground lg:text-sm">Receitas Recebidas</p>
                       </div>
                       <p className="mt-1 text-xl font-bold text-emerald-500 lg:text-2xl">
-                        R$ {(receitaTotal + receitasRecebidas + vendasPrazoRecebidas).toFixed(2)}
+                        R$ {(receitaTotal + receitasRecebidas).toFixed(2)}
                       </p>
                     </div>
 
@@ -306,7 +470,7 @@ export default function RelatoriosPage() {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </Card >
 
               <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
                 <Card className="overflow-hidden">
@@ -320,11 +484,11 @@ export default function RelatoriosPage() {
                     <div className="space-y-3">
                       <div>
                         <p className="text-xs text-muted-foreground">A Pagar</p>
-                        <p className="text-xl font-bold text-red-500">R$ {(despesasPendentes + vendasPrazoPendentes).toFixed(2)}</p>
+                        <p className="text-xl font-bold text-red-500">R$ {despesasPendentes.toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">A Receber</p>
-                        <p className="text-xl font-bold text-emerald-500">R$ {(receitasPendentes + vendasPrazoPendentes).toFixed(2)}</p>
+                        <p className="text-xl font-bold text-emerald-500">R$ {receitasPendentes.toFixed(2)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -339,18 +503,22 @@ export default function RelatoriosPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      <div className="text-3xl font-bold text-destructive">R$ {totalPerdas.toFixed(2)}</div>
-                      <p className="text-xs text-muted-foreground">{perdas.length} perdas registradas</p>
+                      <div className="text-3xl font-bold text-destructive">
+                        {loadingPerdas ? "..." : `R$ ${totalPerdas.toFixed(2)}`}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {loadingPerdas ? "..." : `${perdas?.length || 0} perdas registradas`}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
               </div>
-            </TabsContent>
+            </TabsContent >
 
             {/* Tab Financeiro (contas) */}
-            <TabsContent value="financeiro" className="space-y-4 lg:space-y-6 mt-4">
+            < TabsContent value="financeiro" className="space-y-4 lg:space-y-6 mt-4" >
               {/* Cards de Resumo Financeiro */}
-              <div className="grid gap-4 sm:grid-cols-3 lg:gap-6">
+              < div className="grid gap-4 sm:grid-cols-3 lg:gap-6" >
                 <Card className="overflow-hidden border-red-500/20">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -374,7 +542,7 @@ export default function RelatoriosPage() {
                   <CardContent>
                     <div className="text-3xl font-bold text-emerald-500">R$ {totalReceberPendente.toFixed(2)}</div>
                     <p className="text-sm text-muted-foreground">
-                      {contasReceber.filter((c) => c.status === "pendente").length} pendentes
+                      {contasReceber?.filter((c) => c.status === "pendente").length || 0} pendentes
                     </p>
                   </CardContent>
                 </Card>
@@ -387,14 +555,18 @@ export default function RelatoriosPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-destructive">R$ {totalPerdas.toFixed(2)}</div>
-                    <p className="text-sm text-muted-foreground">{perdas.length} perdas registradas</p>
+                    <div className="text-3xl font-bold text-destructive">
+                      {loadingPerdas ? "..." : `R$ ${totalPerdas.toFixed(2)}`}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {loadingPerdas ? "..." : `${perdas?.length || 0} perdas registradas`}
+                    </p>
                   </CardContent>
                 </Card>
-              </div>
+              </div >
 
               {/* Busca e Sub-tabs */}
-              <Card className="overflow-hidden">
+              < Card className="overflow-hidden" >
                 <CardContent className="pt-4 lg:pt-6">
                   <div className="relative">
                     <Input
@@ -405,10 +577,10 @@ export default function RelatoriosPage() {
                     />
                   </div>
                 </CardContent>
-              </Card>
+              </Card >
 
               {/* Sub-tabs para Contas */}
-              <Tabs defaultValue="pagar" className="w-full">
+              < Tabs defaultValue="pagar" className="w-full" >
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="pagar">Contas a Pagar</TabsTrigger>
                   <TabsTrigger value="receber">Contas a Receber</TabsTrigger>
@@ -576,23 +748,30 @@ export default function RelatoriosPage() {
                   <Card className="overflow-hidden">
                     <CardContent className="p-4">
                       <div className="space-y-3">
-                        {perdas.length === 0 ? (
+                        {loadingPerdas ? (
+                          <p className="py-8 text-center text-sm text-muted-foreground">Carregando perdas...</p>
+                        ) : !perdas || perdas.length === 0 ? (
                           <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma perda registrada</p>
                         ) : (
                           perdas.map((perda) => (
                             <div key={perda.id} className="flex items-center justify-between rounded-lg border border-border p-3">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <h4 className="text-sm font-medium">{perda.produtoNome}</h4>
+                                  <h4 className="text-sm font-medium">{perda.produtos?.nome || "Produto"}</h4>
                                   <Badge variant="outline" className="text-xs">
-                                    {perda.categoria}
+                                    {perda.categorias_perdas?.nome || "Sem categoria"}
                                   </Badge>
                                 </div>
                                 <div className="mt-1 text-xs text-muted-foreground">
-                                  {perda.quantidade} unidades • {new Date(perda.data).toLocaleDateString("pt-BR")}
+                                  {perda.quantidade} unidades • {new Date(perda.data_perda).toLocaleDateString("pt-BR")}
                                 </div>
+                                {perda.motivo && (
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {perda.motivo}
+                                  </div>
+                                )}
                               </div>
-                              <span className="text-lg font-bold text-destructive">R$ {perda.custoTotal.toFixed(2)}</span>
+                              <span className="text-lg font-bold text-destructive">R$ {perda.custo_total.toFixed(2)}</span>
                             </div>
                           ))
                         )}
@@ -600,11 +779,11 @@ export default function RelatoriosPage() {
                     </CardContent>
                   </Card>
                 </TabsContent>
-              </Tabs>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </main>
-    </div>
+              </Tabs >
+            </TabsContent >
+          </Tabs >
+        </div >
+      </main >
+    </div >
   )
 }

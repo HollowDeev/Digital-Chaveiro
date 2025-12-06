@@ -320,8 +320,8 @@ export default function CaixaPage() {
                         <div className="flex items-start gap-3 lg:gap-4">
                           <div
                             className={`rounded-lg p-2 lg:p-3 flex-shrink-0 ${movimentacao.tipo === "entrada"
-                                ? "bg-accent/10 text-accent"
-                                : "bg-destructive/10 text-destructive"
+                              ? "bg-accent/10 text-accent"
+                              : "bg-destructive/10 text-destructive"
                               }`}
                           >
                             {movimentacao.tipo === "entrada" ? (

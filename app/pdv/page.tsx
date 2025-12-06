@@ -135,85 +135,183 @@ export default function PDVPage() {
   }
 
   const handleFinalizarVenda = async () => {
-    if (vendaAPrazo) {
-      if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
-        mostrarToast("⚠️ Selecione um cliente para venda a prazo!")
-        return
-      }
-      if (!dataVencimento) {
-        mostrarToast("⚠️ Defina a data de vencimento!")
-        return
-      }
+    if (!vendaAtual.funcionarioId) {
+      mostrarToast("⚠️ Selecione o vendedor!")
+      return
+    }
 
-      const cliente = clientes.find((c) => c.id === vendaAtual.clienteId)
-      if (!cliente) return
+    if (!lojaId || !userId) {
+      mostrarToast("⚠️ Erro ao identificar usuário ou loja")
+      return
+    }
 
-      const valorParcela = total / numeroParcelas
-      const now = Date.now()
-      const parcelas = Array.from({ length: numeroParcelas }, (_, i) => {
-        const dataVenc = new Date(dataVencimento)
-        dataVenc.setMonth(dataVenc.getMonth() + i)
-        return {
-          id: `${now}-${i}`,
-          numero: i + 1,
-          valor: valorParcela,
-          dataVencimento: dataVenc.toISOString(),
-          status: "pendente" as const,
+    try {
+      const supabase = createClient()
+
+      if (vendaAPrazo) {
+        if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
+          mostrarToast("⚠️ Selecione um cliente para venda a prazo!")
+          return
         }
-      })
+        if (!dataVencimento) {
+          mostrarToast("⚠️ Defina a data de vencimento!")
+          return
+        }
 
-      const vendaPrazo = {
-        id: `VP${now}`,
-        vendaId: `VP${now}`,
-        clienteId: cliente.id,
-        clienteNome: cliente.nome,
-        valorTotal: total,
-        valorPago: 0,
-        valorRestante: total,
-        dataVenda: new Date().toISOString(),
-        dataVencimento: parcelas[0].dataVencimento,
-        status: "pendente" as const,
-        parcelas,
-      }
+        // 1. SALVAR VENDA A PRAZO NO BANCO
+        const { data: vendaData, error: vendaError } = await supabase
+          .from("vendas")
+          .insert({
+            loja_id: lojaId,
+            cliente_id: vendaAtual.clienteId,
+            funcionario_id: vendaAtual.funcionarioId,
+            subtotal: subtotal,
+            desconto: vendaAtual.desconto || 0,
+            total: total,
+            forma_pagamento: formaPagamento,
+            status: "pendente",
+          })
+          .select()
+          .single()
 
-      adicionarVendaPrazo(vendaPrazo)
-      adicionarContaReceber({
-        id: `CR${now}`,
-        descricao: `Venda a Prazo - ${cliente.nome} (Parcela 1/${numeroParcelas})`,
-        valor: valorParcela,
-        dataVencimento: parcelas[0].dataVencimento,
-        status: "pendente",
-        clienteId: cliente.id,
-        clienteNome: cliente.nome,
-      })
+        if (vendaError) throw vendaError
 
-      limparVenda()
-      setDialogPagamento(false)
-      setVendaAPrazo(false)
-      mostrarToast("✅ Venda a prazo registrada!")
-    } else {
-      // Registrar venda normal
-      finalizarVenda(formaPagamento)
-      
-      // Registrar movimentação no caixa se houver caixa aberto
-      if (caixaAbertoDB && lojaId && userId) {
-        try {
-          const supabase = createClient()
-          
-          // Determinar categoria baseada na forma de pagamento
+        // 2. SALVAR ITENS DA VENDA
+        const itensVenda = vendaAtual.itens.map((item) => ({
+          venda_id: vendaData.id,
+          produto_id: item.tipo === "produto" ? item.id : null,
+          servico_id: item.tipo === "servico" ? item.id : null,
+          quantidade: item.quantidade,
+          preco_unitario: item.preco,
+          subtotal: item.subtotal,
+        }))
+
+        await supabase.from("vendas_itens").insert(itensVenda)
+
+        // 3. ATUALIZAR ESTOQUE
+        for (const item of vendaAtual.itens) {
+          if (item.tipo === "produto") {
+            const produto = produtos.find((p) => p.id === item.id)
+            if (produto) {
+              await supabase
+                .from("produtos")
+                .update({ estoque: produto.estoque - item.quantidade })
+                .eq("id", item.id)
+            }
+          }
+        }
+
+        // 4. CRIAR PARCELAS A RECEBER
+        const valorParcela = total / numeroParcelas
+        const parcelas = []
+
+        for (let i = 0; i < numeroParcelas; i++) {
+          const dataVenc = new Date(dataVencimento)
+          dataVenc.setMonth(dataVenc.getMonth() + i)
+
+          parcelas.push({
+            loja_id: lojaId,
+            venda_id: vendaData.id,
+            cliente_id: vendaAtual.clienteId,
+            numero_parcela: i + 1,
+            valor: valorParcela,
+            data_vencimento: dataVenc.toISOString(),
+            status: "pendente",
+          })
+        }
+
+        await supabase.from("parcelas_receber").insert(parcelas)
+
+        // Manter no Zustand para compatibilidade
+        const cliente = clientes.find((c) => c.id === vendaAtual.clienteId)!
+        const vendaPrazoZustand = {
+          id: vendaData.id,
+          vendaId: vendaData.id,
+          clienteId: cliente.id,
+          clienteNome: cliente.nome,
+          valorTotal: total,
+          valorPago: 0,
+          valorRestante: total,
+          dataVenda: new Date().toISOString(),
+          dataVencimento: parcelas[0].data_vencimento,
+          status: "pendente" as const,
+          parcelas: parcelas.map((p) => ({
+            id: p.venda_id + "-" + p.numero_parcela,
+            numero: p.numero_parcela,
+            valor: p.valor,
+            dataVencimento: p.data_vencimento,
+            status: p.status as "pendente",
+          })),
+        }
+
+        adicionarVendaPrazo(vendaPrazoZustand)
+        limparVenda()
+        setDialogPagamento(false)
+        setVendaAPrazo(false)
+        setNumeroParcelas(1)
+        mostrarToast("✅ Venda a prazo registrada!")
+      } else {
+        // VENDA À VISTA
+
+        // 1. SALVAR VENDA NO BANCO
+        const { data: vendaData, error: vendaError } = await supabase
+          .from("vendas")
+          .insert({
+            loja_id: lojaId,
+            cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
+            funcionario_id: vendaAtual.funcionarioId,
+            subtotal: subtotal,
+            desconto: vendaAtual.desconto || 0,
+            total: total,
+            forma_pagamento: formaPagamento,
+            status: "concluida",
+          })
+          .select()
+          .single()
+
+        if (vendaError) throw vendaError
+
+        // 2. SALVAR ITENS DA VENDA
+        const itensVenda = vendaAtual.itens.map((item) => ({
+          venda_id: vendaData.id,
+          produto_id: item.tipo === "produto" ? item.id : null,
+          servico_id: item.tipo === "servico" ? item.id : null,
+          quantidade: item.quantidade,
+          preco_unitario: item.preco,
+          subtotal: item.subtotal,
+        }))
+
+        await supabase.from("vendas_itens").insert(itensVenda)
+
+        // 3. ATUALIZAR ESTOQUE
+        for (const item of vendaAtual.itens) {
+          if (item.tipo === "produto") {
+            const produto = produtos.find((p) => p.id === item.id)
+            if (produto) {
+              await supabase
+                .from("produtos")
+                .update({ estoque: produto.estoque - item.quantidade })
+                .eq("id", item.id)
+            }
+          }
+        }
+
+        // 4. REGISTRAR MOVIMENTAÇÃO NO CAIXA
+        if (caixaAbertoDB) {
           const categoriaMap: Record<string, string> = {
             dinheiro: "Venda - Dinheiro",
             pix: "Venda - PIX",
             cartao_credito: "Venda - Cartão Crédito",
             cartao_debito: "Venda - Cartão Débito",
-            outros: "Venda - Outros"
+            outros: "Venda - Outros",
           }
 
-          const cliente = vendaAtual.clienteId && vendaAtual.clienteId !== "none" 
-            ? clientes.find(c => c.id === vendaAtual.clienteId)
-            : null
+          const cliente =
+            vendaAtual.clienteId && vendaAtual.clienteId !== "none"
+              ? clientes.find((c) => c.id === vendaAtual.clienteId)
+              : null
 
-          const descricao = cliente 
+          const descricao = cliente
             ? `Venda para ${cliente.nome} - ${vendaAtual.itens.length} item(ns)`
             : `Venda - ${vendaAtual.itens.length} item(ns)`
 
@@ -225,18 +323,23 @@ export default function PDVPage() {
             descricao: descricao,
             valor: total,
             funcionario_id: userId,
+            venda_id: vendaData.id,
           })
 
-          // Atualizar dados do caixa
           refetchCaixa()
-        } catch (err) {
-          console.error("Erro ao registrar movimentação:", err)
-          // Não bloqueia a venda se houver erro no registro do caixa
         }
-      }
 
-      setDialogPagamento(false)
-      mostrarToast("✅ Venda finalizada com sucesso!")
+        // Manter no Zustand para compatibilidade
+        finalizarVenda(formaPagamento)
+        limparVenda()
+        setDialogPagamento(false)
+        setFormaPagamento("dinheiro")
+        setValorRecebido("")
+        mostrarToast("✅ Venda finalizada com sucesso!")
+      }
+    } catch (err: any) {
+      console.error("Erro ao finalizar venda:", err)
+      mostrarToast("❌ Erro ao finalizar venda: " + (err.message || "Erro desconhecido"))
     }
   }
 

@@ -88,20 +88,23 @@ export function useServicos(lojaId?: string) {
         .from("servicos")
         .select("*")
         .eq("loja_id", lojaId)
-        .eq("ativo", true)
         .order("nome")
 
+      console.log("Query servicos - lojaId:", lojaId) // Debug
+      console.log("Serviços do banco:", data) // Debug
+      console.log("Erro ao buscar serviços:", err) // Debug
+      
       if (err) throw err
       setServicos(
         (data || []).map((s: any) => ({
           id: s.id,
           nome: s.nome,
-          codigo: s.id.substring(0, 8), // Gera um código a partir do ID
-          preco: s.preco,
-          categoria: "Serviço",
+          codigo: s.id.substring(0, 8).toUpperCase(),
+          preco: Number(s.preco) || 0,
+          categoria: s.categoria || "Geral",
           descricao: s.descricao || "",
-          duracao: s.duracao_estimada || null,
-          ativo: s.ativo,
+          duracao: s.duracao_estimada || 0,
+          ativo: s.ativo !== false,
         }))
       )
     } catch (err) {
@@ -250,7 +253,7 @@ export function useVendas(lojaId?: string) {
           .from("vendas")
           .select("*")
           .eq("loja_id", lojaId)
-          .order("data_venda", { ascending: false })
+          .order("created_at", { ascending: false })
 
         if (err) throw err
         setVendas(
@@ -258,12 +261,12 @@ export function useVendas(lojaId?: string) {
             id: v.id,
             funcionarioId: v.funcionario_id,
             clienteId: v.cliente_id,
-            total: v.total,
-            desconto: v.desconto || 0,
+            total: Number(v.total) || 0,
+            desconto: Number(v.desconto) || 0,
             formaPagamento: v.forma_pagamento as "dinheiro" | "credito" | "debito" | "pix",
             status: v.status as "concluida" | "cancelada" | "pendente",
-            data: v.data_venda,
-            itens: [], // Será populado pelo hook de itens
+            data: v.created_at,
+            itens: [],
           }))
         )
       } catch (err) {
@@ -377,56 +380,6 @@ export function useContasReceber(lojaId?: string) {
 }
 
 /**
- * Hook para buscar perdas/danos da loja selecionada
- */
-export function usePerdas(lojaId?: string) {
-  const [perdas, setPerdas] = useState<Perda[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-
-  useEffect(() => {
-    if (!lojaId) {
-      setPerdas([])
-      setLoading(false)
-      return
-    }
-
-    const fetchPerdas = async () => {
-      const supabase = createClient()
-      try {
-        const { data, error: err } = await supabase
-          .from("perdas")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .order("data_perda", { ascending: false })
-
-        if (err) throw err
-        setPerdas(
-          (data || []).map((p: any) => ({
-            id: p.id,
-            descricao: p.descricao,
-            quantidade: p.quantidade,
-            custoUnitario: p.custo_unitario,
-            custoTotal: p.custo_total,
-            motivo: p.motivo,
-            categoriaPerda: p.categoria_perda,
-            data: p.data_perda,
-          }))
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Erro ao buscar perdas"))
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchPerdas()
-  }, [lojaId])
-
-  return { perdas, loading, error }
-}
-
-/**
  * Hook para buscar caixa aberto da loja selecionada
  */
 export function useCaixaAberto(lojaId?: string) {
@@ -521,4 +474,179 @@ export function useCaixaAberto(lojaId?: string) {
   }, [lojaId])
 
   return { caixaAtual, loading, error, refetch: fetchCaixa }
+}
+
+/**
+ * Hook para buscar vendas da loja com filtro de data
+ */
+export function useVendasComFiltro(lojaId?: string, dataInicio?: Date, dataFim?: Date) {
+  const [vendas, setVendas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchVendas = async () => {
+    if (!lojaId) {
+      setVendas([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      let query = supabase
+        .from("vendas")
+        .select(`
+          *,
+          vendas_itens (
+            *,
+            produtos (nome, codigo_barras),
+            servicos (nome)
+          ),
+          clientes (nome, email, telefone)
+        `)
+        .eq("loja_id", lojaId)
+        .order("data_venda", { ascending: false })
+
+      if (dataInicio) {
+        query = query.gte("data_venda", dataInicio.toISOString())
+      }
+
+      if (dataFim) {
+        const dataFimFinal = new Date(dataFim)
+        dataFimFinal.setHours(23, 59, 59, 999)
+        query = query.lte("data_venda", dataFimFinal.toISOString())
+      }
+
+      const { data, error: err } = await query
+
+      if (err) throw err
+
+      const vendasMapeadas = (data || []).map((v: any) => ({
+        id: v.id,
+        lojaId: v.loja_id,
+        clienteId: v.cliente_id,
+        clienteNome: v.clientes?.nome || "Cliente não identificado",
+        funcionarioId: v.funcionario_id,
+        subtotal: v.subtotal,
+        desconto: v.desconto,
+        total: v.total,
+        formaPagamento: v.forma_pagamento,
+        status: v.status,
+        dataVenda: v.data_venda,
+        itens: (v.vendas_itens || []).map((item: any) => ({
+          id: item.id,
+          produtoId: item.produto_id,
+          servicoId: item.servico_id,
+          nome: item.produtos?.nome || item.servicos?.nome || "Item",
+          quantidade: item.quantidade,
+          precoUnitario: item.preco_unitario,
+          subtotal: item.subtotal,
+        })),
+      }))
+
+      setVendas(vendasMapeadas)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar vendas"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchVendas()
+  }, [lojaId, dataInicio, dataFim])
+
+  return { vendas, loading, error, refetch: fetchVendas }
+}
+
+/**
+ * Hook para buscar categorias de perdas da loja
+ */
+export function useCategoriasPerdas(lojaId?: string) {
+  const [categorias, setCategorias] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchCategorias = async () => {
+    if (!lojaId) {
+      setCategorias([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("categorias_perdas")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .order("nome")
+
+      if (fetchError) throw fetchError
+      setCategorias(data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar categorias de perdas"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCategorias()
+  }, [lojaId])
+
+  return { categorias, loading, error, refetch: fetchCategorias }
+}
+
+/**
+ * Hook para buscar perdas da loja com filtro de data
+ */
+export function usePerdas(lojaId?: string, dataInicio?: Date, dataFim?: Date) {
+  const [perdas, setPerdas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchPerdas = async () => {
+    if (!lojaId) {
+      setPerdas([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      let query = supabase
+        .from("perdas")
+        .select(`
+          *,
+          produtos (nome, codigo_barras),
+          categorias_perdas (nome),
+          lojas_usuarios (nome)
+        `)
+        .eq("loja_id", lojaId)
+        .order("data_perda", { ascending: false })
+
+      if (dataInicio) {
+        query = query.gte("data_perda", dataInicio.toISOString())
+      }
+      if (dataFim) {
+        query = query.lte("data_perda", dataFim.toISOString())
+      }
+
+      const { data, error: fetchError } = await query
+
+      if (fetchError) throw fetchError
+      setPerdas(data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar perdas"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPerdas()
+  }, [lojaId, dataInicio, dataFim])
+
+  return { perdas, loading, error, refetch: fetchPerdas }
 }

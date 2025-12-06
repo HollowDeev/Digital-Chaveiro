@@ -15,6 +15,7 @@ import {
   Receipt,
   Sparkles,
   Settings,
+  TrendingUp,
 } from "lucide-react"
 import ThemeToggle from "./theme-toggle"
 
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/funcionarios", label: "Funcionários", icon: UserCircle },
   { href: "/caixa", label: "Caixa", icon: Wallet },
   { href: "/relatorios", label: "Relatórios", icon: FileText },
+  { href: "/graficos", label: "Gráficos", icon: TrendingUp },
   { href: "/configuracao", label: "Configurações", icon: Settings },
 ]
 
