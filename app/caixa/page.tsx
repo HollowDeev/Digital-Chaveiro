@@ -11,11 +11,13 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
+import { useLoja } from "@/lib/contexts/loja-context"
 import { useCaixaAberto, useFuncionarios } from "@/lib/hooks/useLojaData"
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react"
 
 export default function CaixaPage() {
-  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { lojaAtual } = useLoja()
+  const lojaId = lojaAtual?.id
   const [userId, setUserId] = useState<string | undefined>()
   const { caixaAtual, refetch } = useCaixaAberto(lojaId)
   const { funcionarios } = useFuncionarios(lojaId)
@@ -26,7 +28,7 @@ export default function CaixaPage() {
   const [valorAbertura, setValorAbertura] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  // Buscar loja e usuário
+  // Buscar usuário
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient()
@@ -34,16 +36,6 @@ export default function CaixaPage() {
       if (!user) return
 
       setUserId(user.id)
-
-      const { data: lojas } = await supabase
-        .from("lojas")
-        .select("id")
-        .eq("dono_id", user.id)
-        .limit(1)
-
-      if (lojas && lojas.length > 0) {
-        setLojaId(lojas[0].id)
-      }
     }
 
     fetchData()

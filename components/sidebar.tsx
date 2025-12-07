@@ -23,6 +23,7 @@ const navItems = [
   { href: "/pdv", label: "PDV", icon: Receipt },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/estoque", label: "Estoque", icon: Package },
+  { href: "/servicos", label: "Serviços", icon: Wrench },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/funcionarios", label: "Funcionários", icon: UserCircle },
   { href: "/caixa", label: "Caixa", icon: Wallet },

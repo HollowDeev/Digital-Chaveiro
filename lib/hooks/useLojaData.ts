@@ -650,3 +650,187 @@ export function usePerdas(lojaId?: string, dataInicio?: Date, dataFim?: Date) {
 
   return { perdas, loading, error, refetch: fetchPerdas }
 }
+
+/**
+ * Hook para buscar serviços realizados da loja
+ */
+export function useServicosRealizados(lojaId?: string, status?: string) {
+  const [servicosRealizados, setServicosRealizados] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchServicosRealizados = async () => {
+    if (!lojaId) {
+      setServicosRealizados([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      let query = supabase
+        .from("servicos_realizados")
+        .select(`
+          *,
+          servico:servicos(nome, preco),
+          cliente:clientes(nome, telefone),
+          funcionario:lojas_usuarios(
+            usuario_id,
+            cargo
+          ),
+          venda:vendas(total)
+        `)
+        .eq("loja_id", lojaId)
+        .order("created_at", { ascending: false })
+
+      if (status) {
+        query = query.eq("status", status)
+      }
+
+      const { data, error: err } = await query
+
+      if (err) throw err
+      setServicosRealizados(data || [])
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error("Erro ao buscar serviços realizados")
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchServicosRealizados()
+  }, [lojaId, status])
+
+  return { servicosRealizados, loading, error, refetch: fetchServicosRealizados }
+}
+
+/**
+ * Hook para buscar motivos de problemas
+ */
+export function useMotivosProblemas(lojaId?: string) {
+  const [motivos, setMotivos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchMotivos = async () => {
+    if (!lojaId) {
+      setMotivos([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      const { data, error: err } = await supabase
+        .from("motivos_problemas_servicos")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .eq("ativo", true)
+        .order("nome")
+
+      if (err) throw err
+      setMotivos(data || [])
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error("Erro ao buscar motivos de problemas")
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchMotivos()
+  }, [lojaId])
+
+  return { motivos, loading, error, refetch: fetchMotivos }
+}
+
+/**
+ * Hook para buscar problemas de um serviço
+ */
+export function useProblemasServico(servicoRealizadoId?: string) {
+  const [problemas, setProblemas] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchProblemas = async () => {
+    if (!servicoRealizadoId) {
+      setProblemas([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      const { data, error: err } = await supabase
+        .from("servicos_problemas")
+        .select(`
+          *,
+          motivo:motivos_problemas_servicos(nome, descricao),
+          funcionario_culpado:lojas_usuarios(usuario_id)
+        `)
+        .eq("servico_realizado_id", servicoRealizadoId)
+        .order("created_at", { ascending: false })
+
+      if (err) throw err
+      setProblemas(data || [])
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error("Erro ao buscar problemas do serviço")
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProblemas()
+  }, [servicoRealizadoId])
+
+  return { problemas, loading, error, refetch: fetchProblemas }
+}
+
+/**
+ * Hook para buscar arquivos de um serviço
+ */
+export function useArquivosServico(servicoRealizadoId?: string) {
+  const [arquivos, setArquivos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchArquivos = async () => {
+    if (!servicoRealizadoId) {
+      setArquivos([])
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      const { data, error: err } = await supabase
+        .from("servicos_arquivos")
+        .select("*")
+        .eq("servico_realizado_id", servicoRealizadoId)
+        .order("created_at", { ascending: false })
+
+      if (err) throw err
+      setArquivos(data || [])
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error("Erro ao buscar arquivos do serviço")
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchArquivos()
+  }, [servicoRealizadoId])
+
+  return { arquivos, loading, error, refetch: fetchArquivos }
+}

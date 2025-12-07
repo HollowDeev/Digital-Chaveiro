@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
+import { useLoja } from "@/lib/contexts/loja-context"
 import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto } from "@/lib/hooks/useLojaData"
 import { useStore } from "@/lib/store"
 import { ShoppingCart, Wrench, Plus, Trash2, DollarSign, Search, Minus, X, Check, CreditCard, Banknote, Smartphone, Percent, Package, Zap, TrendingUp, Users, Calendar } from "lucide-react"
@@ -19,7 +20,8 @@ import { cn } from "@/lib/utils"
 
 export default function PDVPage() {
   // 1. Hooks e Store
-  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { lojaAtual } = useLoja()
+  const lojaId = lojaAtual?.id
   const [userId, setUserId] = useState<string | undefined>()
   const { produtos } = useProdutos(lojaId)
   const { servicos } = useServicos(lojaId)
@@ -65,6 +67,7 @@ export default function PDVPage() {
   const [vendaAPrazo, setVendaAPrazo] = useState(false)
   const [numeroParcelas, setNumeroParcelas] = useState(1)
   const [dataVencimento, setDataVencimento] = useState("")
+  const [pagarServicoDepois, setPagarServicoDepois] = useState(true)
 
   // 3. Refs
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -72,7 +75,19 @@ export default function PDVPage() {
 
   // 4. Cálculos
   const subtotal = vendaAtual.itens.reduce((acc, item) => acc + item.subtotal, 0)
-  const total = subtotal - vendaAtual.desconto
+  const subtotalProdutos = vendaAtual.itens.filter(item => item.tipo === 'produto').reduce((acc, item) => acc + item.subtotal, 0)
+  const subtotalServicos = vendaAtual.itens.filter(item => item.tipo === 'servico').reduce((acc, item) => acc + item.subtotal, 0)
+  const descontoProdutos = subtotal > 0 ? (subtotalProdutos / subtotal) * vendaAtual.desconto : 0
+  const descontoServicos = subtotal > 0 ? (subtotalServicos / subtotal) * vendaAtual.desconto : 0
+  const totalProdutos = subtotalProdutos - descontoProdutos
+  const totalServicos = subtotalServicos - descontoServicos
+
+  // Se só tem serviços com pagamento posterior, total a pagar agora é 0, mas registramos o valor total
+  // Se tem mix de produtos e serviços com pagamento posterior, cobra só os produtos
+  // Se não tem pagamento posterior, cobra tudo
+  const total = pagarServicoDepois ? totalProdutos : subtotal - vendaAtual.desconto
+  const totalRegistroVenda = subtotal - vendaAtual.desconto // Sempre registrar o valor total da venda
+
   const resumo = getResumoVendas()
   const produtosMaisVendidos = produtos.filter(p => p.ativo).slice(0, 12)
   const dataMinima = new Date().toISOString().split("T")[0]
@@ -124,17 +139,49 @@ export default function PDVPage() {
     return Math.max(0, recebido - total)
   }
 
-  const handleAbrirCaixa = () => {
+  const handleAbrirCaixa = async () => {
     if (!funcionarioIdCaixa) {
       mostrarToast("⚠️ Selecione um funcionário")
       return
     }
-    abrirCaixa(funcionarioIdCaixa, valorAberturaCaixa)
-    setDialogAbrirCaixa(false)
-    mostrarToast("✅ Caixa aberto com sucesso!")
+
+    if (!lojaId || !userId) {
+      mostrarToast("⚠️ Erro ao identificar loja ou usuário")
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("caixas").insert({
+        loja_id: lojaId,
+        funcionario_abertura_id: userId,
+        valor_abertura: valorAberturaCaixa,
+        status: "aberto",
+      })
+
+      if (error) throw error
+
+      // Atualizar Zustand para compatibilidade
+      abrirCaixa(funcionarioIdCaixa, valorAberturaCaixa)
+
+      // Atualizar dados do Supabase
+      refetchCaixa()
+
+      setDialogAbrirCaixa(false)
+      setFuncionarioIdCaixa("")
+      setValorAberturaCaixa(0)
+      mostrarToast("✅ Caixa aberto com sucesso!")
+    } catch (err: any) {
+      console.error("Erro ao abrir caixa:", err)
+      mostrarToast("❌ Erro ao abrir caixa: " + (err.message || "Erro desconhecido"))
+    }
   }
 
   const handleFinalizarVenda = async () => {
+    console.log("=== DEBUG INICIAL handleFinalizarVenda ===")
+    console.log("userId do state:", userId)
+    console.log("lojaId:", lojaId)
+
     if (!vendaAtual.funcionarioId) {
       mostrarToast("⚠️ Selecione o vendedor!")
       return
@@ -148,6 +195,30 @@ export default function PDVPage() {
     try {
       const supabase = createClient()
 
+      console.log("Iniciando finalização de venda...", {
+        lojaId,
+        userId,
+        vendaAPrazo,
+        totalItens: vendaAtual.itens.length,
+        total
+      })
+
+      console.log("VERIFICAÇÃO CRÍTICA:", {
+        lojaIdDefinido: !!lojaId,
+        userIdDefinido: !!userId,
+        lojaIdValor: lojaId,
+        userIdValor: userId,
+      })
+
+      // Buscar user diretamente para confirmar
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      console.log("User autenticado no Supabase:", authUser?.id, authUser?.email)
+
+      if (!authUser) {
+        mostrarToast("⚠️ Usuário não autenticado!")
+        return
+      }
+
       if (vendaAPrazo) {
         if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
           mostrarToast("⚠️ Selecione um cliente para venda a prazo!")
@@ -159,36 +230,105 @@ export default function PDVPage() {
         }
 
         // 1. SALVAR VENDA A PRAZO NO BANCO
+        console.log("Tentando criar venda com dados:", {
+          loja_id: lojaId,
+          cliente_id: vendaAtual.clienteId,
+          funcionario_id: userId,
+          desconto: vendaAtual.desconto || 0,
+          total: totalRegistroVenda,
+          forma_pagamento: formaPagamento,
+          tipo: "aprazo",
+          status: "pendente",
+        })
+
         const { data: vendaData, error: vendaError } = await supabase
           .from("vendas")
           .insert({
             loja_id: lojaId,
             cliente_id: vendaAtual.clienteId,
-            funcionario_id: vendaAtual.funcionarioId,
-            subtotal: subtotal,
+            funcionario_id: userId,
             desconto: vendaAtual.desconto || 0,
-            total: total,
+            total: totalRegistroVenda,
             forma_pagamento: formaPagamento,
+            tipo: "aprazo",
             status: "pendente",
           })
           .select()
           .single()
 
-        if (vendaError) throw vendaError
+        console.log("Resultado da criação da venda:", { vendaData, vendaError })
+
+        if (vendaError) {
+          console.error("Erro ao criar venda:", vendaError)
+          throw vendaError
+        }
+
+        console.log("Venda criada com sucesso! ID:", vendaData.id)
 
         // 2. SALVAR ITENS DA VENDA
+        console.log("Salvando itens da venda:", vendaAtual.itens.length, "itens")
+
         const itensVenda = vendaAtual.itens.map((item) => ({
           venda_id: vendaData.id,
-          produto_id: item.tipo === "produto" ? item.id : null,
-          servico_id: item.tipo === "servico" ? item.id : null,
+          tipo: item.tipo,
+          item_id: item.id,
+          nome: item.nome,
           quantidade: item.quantidade,
           preco_unitario: item.preco,
           subtotal: item.subtotal,
         }))
 
-        await supabase.from("vendas_itens").insert(itensVenda)
+        console.log("Itens preparados para inserção:", itensVenda)
 
-        // 3. ATUALIZAR ESTOQUE
+        const { error: itensError } = await supabase.from("vendas_itens").insert(itensVenda)
+
+        if (itensError) {
+          console.error("Erro ao inserir itens da venda:", itensError)
+          throw itensError
+        }
+
+        console.log("Itens da venda salvos com sucesso")
+
+        // 3. CRIAR SERVIÇOS REALIZADOS (apenas para serviços)
+        const servicosParaCriar = vendaAtual.itens.filter(item => item.tipo === "servico")
+        console.log("Criando serviços realizados:", servicosParaCriar.length, "serviços")
+
+        for (const item of vendaAtual.itens) {
+          if (item.tipo === "servico") {
+            // Buscar duração estimada do serviço
+            const servico = servicos.find((s) => s.id === item.id)
+            let dataPrevista = null
+
+            if (servico?.duracaoEstimada) {
+              const minutosEstimados = servico.duracaoEstimada
+              dataPrevista = new Date(Date.now() + minutosEstimados * 60 * 1000).toISOString()
+            }
+
+            const servicoRealizadoData = {
+              loja_id: lojaId,
+              venda_id: vendaData.id,
+              servico_id: item.id,
+              cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
+              status: "aberto",
+              data_inicio: new Date().toISOString(),
+              data_prevista_conclusao: dataPrevista,
+              pago: !pagarServicoDepois,
+            }
+
+            console.log("Criando serviço realizado:", servicoRealizadoData)
+
+            const { error: servicoError } = await supabase.from("servicos_realizados").insert(servicoRealizadoData)
+
+            if (servicoError) {
+              console.error("Erro ao criar serviço realizado:", servicoError)
+              throw servicoError
+            }
+
+            console.log("Serviço realizado criado com sucesso para item:", item.nome)
+          }
+        }
+
+        // 4. ATUALIZAR ESTOQUE (apenas para produtos)
         for (const item of vendaAtual.itens) {
           if (item.tipo === "produto") {
             const produto = produtos.find((p) => p.id === item.id)
@@ -201,7 +341,7 @@ export default function PDVPage() {
           }
         }
 
-        // 4. CRIAR PARCELAS A RECEBER
+        // 5. CRIAR PARCELAS A RECEBER
         const valorParcela = total / numeroParcelas
         const parcelas = []
 
@@ -249,33 +389,67 @@ export default function PDVPage() {
         setDialogPagamento(false)
         setVendaAPrazo(false)
         setNumeroParcelas(1)
-        mostrarToast("✅ Venda a prazo registrada!")
+        setPagarServicoDepois(true)
+
+        const temServicos = vendaAtual.itens.some(item => item.tipo === 'servico')
+        if (temServicos && pagarServicoDepois) {
+          mostrarToast("✅ Venda a prazo registrada! Serviços abertos na página Serviços (pagamento após conclusão)")
+        } else {
+          mostrarToast("✅ Venda a prazo registrada!")
+        }
       } else {
         // VENDA À VISTA
+        console.log("=== VENDA À VISTA ===")
 
         // 1. SALVAR VENDA NO BANCO
+        console.log("Tentando criar venda à vista com dados:", {
+          loja_id: lojaId,
+          cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
+          funcionario_id: userId,
+          desconto: vendaAtual.desconto || 0,
+          total: totalRegistroVenda,
+          forma_pagamento: formaPagamento,
+          tipo: "avista",
+          status: "concluida",
+        })
+
         const { data: vendaData, error: vendaError } = await supabase
           .from("vendas")
           .insert({
             loja_id: lojaId,
             cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
-            funcionario_id: vendaAtual.funcionarioId,
-            subtotal: subtotal,
+            funcionario_id: userId,
             desconto: vendaAtual.desconto || 0,
-            total: total,
+            total: totalRegistroVenda,
             forma_pagamento: formaPagamento,
+            tipo: "avista",
             status: "concluida",
           })
           .select()
           .single()
 
-        if (vendaError) throw vendaError
+        console.log("Resultado da criação da venda à vista:", { vendaData, vendaError })
+
+        if (vendaError) {
+          console.error("Erro ao criar venda à vista:", vendaError)
+          console.error("Mensagem de erro detalhada:", {
+            message: vendaError.message,
+            details: vendaError.details,
+            hint: vendaError.hint,
+            code: vendaError.code,
+          })
+          throw vendaError
+        }
+
+        console.log("Venda à vista criada com sucesso! ID:", vendaData.id)
 
         // 2. SALVAR ITENS DA VENDA
+        console.log("Salvando itens da venda à vista:", vendaAtual.itens.length, "itens")
         const itensVenda = vendaAtual.itens.map((item) => ({
           venda_id: vendaData.id,
-          produto_id: item.tipo === "produto" ? item.id : null,
-          servico_id: item.tipo === "servico" ? item.id : null,
+          tipo: item.tipo,
+          item_id: item.id,
+          nome: item.nome,
           quantidade: item.quantidade,
           preco_unitario: item.preco,
           subtotal: item.subtotal,
@@ -283,7 +457,32 @@ export default function PDVPage() {
 
         await supabase.from("vendas_itens").insert(itensVenda)
 
-        // 3. ATUALIZAR ESTOQUE
+        // 3. CRIAR SERVIÇOS REALIZADOS (apenas para serviços)
+        for (const item of vendaAtual.itens) {
+          if (item.tipo === "servico") {
+            // Buscar duração estimada do serviço
+            const servico = servicos.find((s) => s.id === item.id)
+            let dataPrevista = null
+
+            if (servico?.duracaoEstimada) {
+              const minutosEstimados = servico.duracaoEstimada
+              dataPrevista = new Date(Date.now() + minutosEstimados * 60 * 1000).toISOString()
+            }
+
+            await supabase.from("servicos_realizados").insert({
+              loja_id: lojaId,
+              venda_id: vendaData.id,
+              servico_id: item.id,
+              cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
+              status: "aberto",
+              data_inicio: new Date().toISOString(),
+              data_prevista_conclusao: dataPrevista,
+              pago: !pagarServicoDepois,
+            })
+          }
+        }
+
+        // 4. ATUALIZAR ESTOQUE (apenas para produtos)
         for (const item of vendaAtual.itens) {
           if (item.tipo === "produto") {
             const produto = produtos.find((p) => p.id === item.id)
@@ -296,7 +495,7 @@ export default function PDVPage() {
           }
         }
 
-        // 4. REGISTRAR MOVIMENTAÇÃO NO CAIXA
+        // 5. REGISTRAR MOVIMENTAÇÃO NO CAIXA
         if (caixaAbertoDB) {
           const categoriaMap: Record<string, string> = {
             dinheiro: "Venda - Dinheiro",
@@ -335,25 +534,59 @@ export default function PDVPage() {
         setDialogPagamento(false)
         setFormaPagamento("dinheiro")
         setValorRecebido("")
-        mostrarToast("✅ Venda finalizada com sucesso!")
+        setPagarServicoDepois(true)
+
+        const temServicos = vendaAtual.itens.some(item => item.tipo === 'servico')
+        const soProdutos = vendaAtual.itens.every(item => item.tipo === 'produto')
+        const soServicos = vendaAtual.itens.every(item => item.tipo === 'servico')
+
+        if (soServicos && pagarServicoDepois) {
+          mostrarToast("✅ Serviço(s) aberto(s) na página Serviços! Pagamento após conclusão.")
+        } else if (temServicos && pagarServicoDepois) {
+          mostrarToast("✅ Venda finalizada! Serviço(s) aberto(s) com pagamento após conclusão.")
+        } else if (temServicos && !pagarServicoDepois) {
+          mostrarToast("✅ Venda finalizada! Serviço(s) pago(s) antecipadamente.")
+        } else {
+          mostrarToast("✅ Venda finalizada com sucesso!")
+        }
       }
     } catch (err: any) {
       console.error("Erro ao finalizar venda:", err)
-      mostrarToast("❌ Erro ao finalizar venda: " + (err.message || "Erro desconhecido"))
+      console.error("Detalhes do erro:", {
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint,
+        stack: err?.stack
+      })
+
+      let mensagemErro = "Erro desconhecido"
+
+      if (err?.message) {
+        mensagemErro = err.message
+      }
+
+      if (err?.code === "23503") {
+        mensagemErro = "Erro de chave estrangeira - verifique se todos os dados estão corretos"
+      }
+
+      if (err?.code === "23505") {
+        mensagemErro = "Registro duplicado"
+      }
+
+      mostrarToast("❌ Erro ao finalizar venda: " + mensagemErro)
     }
   }
 
   // 6. Effects
   useEffect(() => {
-    const fetchLoja = async () => {
+    const fetchUserId = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setUserId(user.id)
-      const { data: lojas } = await supabase.from("lojas").select("id").eq("dono_id", user.id).limit(1)
-      if (lojas && lojas.length > 0) setLojaId(lojas[0].id)
     }
-    fetchLoja()
+    fetchUserId()
   }, [])
 
   useEffect(() => {
@@ -428,7 +661,7 @@ export default function PDVPage() {
   }, [descontoInput, descontoTipo, subtotal, vendaAtual.desconto, setDesconto])
 
   // Modal para abrir caixa se estiver fechado
-  if (caixaAtual?.status !== "aberto") {
+  if (!caixaAbertoDB) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Card className="w-full max-w-md">
@@ -960,6 +1193,46 @@ export default function PDVPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {numeroParcelas}x de R$ {(total / numeroParcelas).toFixed(2)}
+                </p>
+              </div>
+            )}
+
+            {/* Pagamento de Serviços Após Conclusão */}
+            {vendaAtual.itens.some(item => item.tipo === 'servico') && (
+              <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <div className="flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-orange-600" />
+                  <div className="flex flex-col">
+                    <Label htmlFor="pagar-depois" className="cursor-pointer text-sm font-medium">
+                      Pagamento após conclusão
+                    </Label>
+                    <span className="text-xs text-muted-foreground">
+                      {pagarServicoDepois ? 'Serviços serão pagos depois' : 'Serviços pagos antecipadamente'}
+                    </span>
+                  </div>
+                </div>
+                <Switch
+                  id="pagar-depois"
+                  checked={pagarServicoDepois}
+                  onCheckedChange={setPagarServicoDepois}
+                />
+              </div>
+            )}
+
+            {/* Breakdown de valores quando há serviços e pagamento depois */}
+            {vendaAtual.itens.some(item => item.tipo === 'servico') && pagarServicoDepois && (
+              <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/50 p-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Produtos:</span>
+                  <span className="font-medium">R$ {totalProdutos.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Serviços (após conclusão):</span>
+                  <span className="font-medium text-orange-600">R$ {totalServicos.toFixed(2)}</span>
+                </div>
+                <div className="h-px bg-border"></div>
+                <p className="text-xs text-orange-600 font-medium">
+                  ⚠️ Total de serviços será cobrado após conclusão
                 </p>
               </div>
             )}
