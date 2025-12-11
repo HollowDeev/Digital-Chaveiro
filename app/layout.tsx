@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import Providers from "./providers"
 import ThemeToggle from "@/components/theme-toggle"
+import { LoadingBar } from "@/components/loading-bar"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
@@ -41,6 +42,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body suppressHydrationWarning className={`font-sans antialiased`}>
         <Providers>
+          <LoadingBar />
           {children}
           <Analytics />
           <ThemeToggle />

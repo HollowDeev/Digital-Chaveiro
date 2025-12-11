@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto } from "@/lib/hooks/useLojaData"
+import { useCaixaCache } from "@/lib/hooks/useCaixaCache"
 import { useStore } from "@/lib/store"
 import { ShoppingCart, Wrench, Plus, Trash2, DollarSign, Search, Minus, X, Check, CreditCard, Banknote, Smartphone, Percent, Package, Zap, TrendingUp, Users, Calendar } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -29,6 +30,9 @@ export default function PDVPage() {
   const { clientes } = useClientes(lojaId)
   const { funcionarios } = useFuncionarios(lojaId)
   const { caixaAtual: caixaAbertoDB, refetch: refetchCaixa } = useCaixaAberto(lojaId)
+  
+  // Cache do caixa
+  const { caixaAberto: caixaAbertoCached, isHydrated, salvarCache, limparCache } = useCaixaCache()
 
   const {
     vendaAtual,
@@ -258,17 +262,22 @@ export default function PDVPage() {
 
     try {
       const supabase = createClient()
-      const { error } = await supabase.from("caixas").insert({
+      const { data, error } = await supabase.from("caixas").insert({
         loja_id: lojaId,
         funcionario_abertura_id: userId,
         valor_abertura: valorAberturaCaixa,
         status: "aberto",
-      })
+      }).select().single()
 
       if (error) throw error
 
       // Atualizar Zustand para compatibilidade
       abrirCaixa(funcionarioIdCaixa, valorAberturaCaixa)
+
+      // Salvar no cache local
+      if (data) {
+        salvarCache(true, data.id, funcionarioIdCaixa)
+      }
 
       // Atualizar dados do Supabase
       refetchCaixa()
@@ -766,8 +775,23 @@ export default function PDVPage() {
     }
   }, [descontoInput, descontoTipo, subtotal, vendaAtual.desconto, setDesconto])
 
-  // Modal para abrir caixa se estiver fechado
-  if (!caixaAbertoDB) {
+  // Sincronizar cache com banco de dados quando caixa é aberto/fechado
+  useEffect(() => {
+    if (caixaAbertoDB) {
+      salvarCache(true, caixaAbertoDB.id)
+    }
+  }, [caixaAbertoDB, salvarCache])
+
+  // Modal para abrir caixa se estiver fechado - usar cache em vez de fazer requisição
+  if (!isHydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    )
+  }
+
+  if (!caixaAbertoCached && !caixaAbertoDB) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Card className="w-full max-w-md">

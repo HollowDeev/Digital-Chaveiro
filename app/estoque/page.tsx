@@ -339,14 +339,12 @@ export default function GestaoInventarioPage() {
   const calcularSomaCustosServico = (servicoId: string): number => {
     const servico = servicos.find(s => s.id === servicoId)
     if (!servico || !servico.custos || servico.custos.length === 0) {
-      console.log(`Serviço ${servicoId} não tem custos`)
       return 0
     }
     const soma = servico.custos.reduce((acc, custo) => {
       const valor = typeof custo.valor === 'string' ? parseFloat(custo.valor) : Number(custo.valor)
       return acc + valor
     }, 0)
-    console.log(`Soma de custos para ${servicoId}: R$ ${soma.toFixed(2)}`)
     return soma
   }
 
@@ -1257,7 +1255,6 @@ export default function GestaoInventarioPage() {
                                   } else {
                                     // Para serviços, usar a soma dos custos
                                     const somaCustos = calcularSomaCustosServico(novaPerda.produtoId)
-                                    console.log(`Atualizando perda com soma de custos: R$ ${somaCustos.toFixed(2)}`)
                                     setNovaPerda(prev => ({ ...prev, valor: somaCustos.toString() }))
                                   }
                                 }
