@@ -1590,7 +1590,7 @@ export default function PDVPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setDialogNovaPerda(false)
-              setNovaPerda({ produtoId: "", quantidade: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+              setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
             }}>
               Cancelar
             </Button>
