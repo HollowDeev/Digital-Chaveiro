@@ -51,6 +51,9 @@ export default function PDVPage() {
   const [searchResults, setSearchResults] = useState<Array<{ id: string, nome: string, preco: number, tipo: 'produto' | 'servico', estoque?: number }>>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0)
+  const [searchClienteQuery, setSearchClienteQuery] = useState("")
+  const [showClienteResults, setShowClienteResults] = useState(false)
+  const [clienteSelecionadoNome, setClienteSelecionadoNome] = useState("")
   const [descontoTipo, setDescontoTipo] = useState<'valor' | 'percentual'>('valor')
   const [descontoInput, setDescontoInput] = useState("")
   const [valorRecebido, setValorRecebido] = useState("")
@@ -72,6 +75,7 @@ export default function PDVPage() {
   // 3. Refs
   const searchInputRef = useRef<HTMLInputElement>(null)
   const descontoInputRef = useRef<HTMLInputElement>(null)
+  const clienteSearchInputRef = useRef<HTMLInputElement>(null)
 
   // 4. Cálculos
   const subtotal = vendaAtual.itens.reduce((acc, item) => acc + item.subtotal, 0)
@@ -98,6 +102,26 @@ export default function PDVPage() {
     setShowToast(true)
     setTimeout(() => setShowToast(false), 2000)
   }, [])
+
+  const filtroClienteResultados = clientes.filter((cliente) =>
+    cliente.nome.toLowerCase().includes(searchClienteQuery.toLowerCase()) ||
+    cliente.telefone?.includes(searchClienteQuery) ||
+    cliente.endereco?.toLowerCase().includes(searchClienteQuery.toLowerCase())
+  )
+
+  const handleSelecionarCliente = (cliente: any) => {
+    setCliente(cliente.id)
+    setClienteSelecionadoNome(cliente.nome)
+    setSearchClienteQuery(cliente.nome)
+    setShowClienteResults(false)
+  }
+
+  const handleLimparCliente = () => {
+    setCliente("none")
+    setClienteSelecionadoNome("")
+    setSearchClienteQuery("")
+    setShowClienteResults(false)
+  }
 
   const adicionarItemRapido = useCallback((produtoId: string, tipo: 'produto' | 'servico') => {
     if (tipo === 'produto') {
@@ -930,20 +954,55 @@ export default function PDVPage() {
                   </div>
 
                   <div>
-                    <Label className="text-xs mb-1" id="select-cliente">Cliente (F3)</Label>
-                    <Select value={vendaAtual.clienteId} onValueChange={setCliente}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Sem cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sem cliente</SelectItem>
-                        {clientes.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
-                            {cliente.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs mb-1">Cliente (F3)</Label>
+                    <div className="relative">
+                      <div className="flex gap-1">
+                        <Input
+                          ref={clienteSearchInputRef}
+                          placeholder="Pesquisar cliente..."
+                          value={searchClienteQuery}
+                          onChange={(e) => {
+                            setSearchClienteQuery(e.target.value)
+                            setShowClienteResults(true)
+                          }}
+                          onFocus={() => setShowClienteResults(true)}
+                          className="h-9 text-sm"
+                        />
+                        {vendaAtual.clienteId && vendaAtual.clienteId !== "none" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleLimparCliente}
+                            className="h-9 px-2"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {showClienteResults && filtroClienteResultados.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                          {filtroClienteResultados.map((cliente) => (
+                            <button
+                              key={cliente.id}
+                              onClick={() => handleSelecionarCliente(cliente)}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b last:border-b-0 transition-colors text-sm"
+                            >
+                              <div className="font-medium">{cliente.nome}</div>
+                              <div className="text-xs text-gray-500">
+                                {cliente.endereco && <span>{cliente.endereco}</span>}
+                                {cliente.endereco && cliente.telefone && <span> • </span>}
+                                {cliente.telefone && <span>{cliente.telefone}</span>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {showClienteResults && searchClienteQuery && filtroClienteResultados.length === 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 p-3 text-xs text-gray-500">
+                          Nenhum cliente encontrado
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

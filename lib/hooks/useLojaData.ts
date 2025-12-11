@@ -129,50 +129,52 @@ export function useClientes(lojaId?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
+  const fetchClientes = async () => {
     if (!lojaId) {
       setClientes([])
       setLoading(false)
       return
     }
 
-    const fetchClientes = async () => {
-      const supabase = createClient()
-      try {
-        const { data, error: err } = await supabase
-          .from("clientes")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .eq("ativo", true)
-          .order("nome")
+    setLoading(true)
+    const supabase = createClient()
+    try {
+      const { data, error: err } = await supabase
+        .from("clientes")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .eq("ativo", true)
+        .order("nome")
 
-        if (err) throw err
-        setClientes(
-          (data || []).map((c: any) => ({
-            id: c.id,
-            nome: c.nome,
-            email: c.email,
-            telefone: c.telefone,
-            tipo: c.tipo as "pf" | "pj",
-            cpf_cnpj: c.cpf_cnpj,
-            endereco: c.endereco,
-            cidade: c.cidade,
-            estado: c.estado,
-            cep: c.cep,
-            ativo: c.ativo,
-          }))
-        )
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Erro ao buscar clientes"))
-      } finally {
-        setLoading(false)
-      }
+      if (err) throw err
+      setClientes(
+        (data || []).map((c: any) => ({
+          id: c.id,
+          nome: c.nome,
+          email: c.email,
+          telefone: c.telefone,
+          tipo: c.tipo as "pf" | "pj",
+          cpf_cnpj: c.cpf_cnpj,
+          endereco: c.endereco,
+          cidade: c.cidade,
+          estado: c.estado,
+          cep: c.cep,
+          ativo: c.ativo,
+          observacoes: c.observacoes,
+        }))
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar clientes"))
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchClientes()
   }, [lojaId])
 
-  return { clientes, loading, error }
+  return { clientes, loading, error, refetch: fetchClientes }
 }
 
 /**
