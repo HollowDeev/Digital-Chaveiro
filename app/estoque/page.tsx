@@ -64,11 +64,15 @@ export default function GestaoInventarioPage() {
 
   const [novaPerda, setNovaPerda] = useState({
     produtoId: "",
+    tipo: "produto" as 'produto' | 'servico',
     quantidade: "",
+    valor: "",
     funcionarioId: "",
     categoriaId: "",
     observacoes: ""
   })
+
+  const [perdaTipoValor, setPerdaTipoValor] = useState<'custo' | 'preco'>('custo')
 
   const [produtoEditando, setProdutoEditando] = useState<any>(null)
   const [servicoEditando, setServicoEditando] = useState<any>(null)
@@ -290,25 +294,42 @@ export default function GestaoInventarioPage() {
 
   // Registrar Perda
   const handleRegistrarPerda = () => {
-    if (!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.funcionarioId || !novaPerda.categoriaId) {
+    if (!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.funcionarioId || !novaPerda.categoriaId || !novaPerda.valor) {
       mostrarToast("⚠️ Preencha todos os campos")
       return
     }
 
-    const produto = produtos.find(p => p.id === novaPerda.produtoId)
+    const quantidade = Number.parseInt(novaPerda.quantidade)
+    const valor = Number.parseFloat(novaPerda.valor)
+
+    if (isNaN(quantidade) || quantidade <= 0 || isNaN(valor) || valor <= 0) {
+      mostrarToast("⚠️ Quantidade e valor devem ser maiores que zero")
+      return
+    }
+
     const funcionario = funcionarios.find(f => f.id === novaPerda.funcionarioId)
     const categoria = categoriasPerdas.find(c => c.id === novaPerda.categoriaId)
 
-    if (!produto || !funcionario || !categoria) return
+    if (!funcionario || !categoria) return
 
-    const quantidade = Number.parseInt(novaPerda.quantidade)
+    let itemNome = ""
+    if (novaPerda.tipo === 'produto') {
+      const produto = produtos.find(p => p.id === novaPerda.produtoId)
+      if (!produto) return
+      itemNome = produto.nome
+    } else {
+      const servico = servicos.find(s => s.id === novaPerda.produtoId)
+      if (!servico) return
+      itemNome = servico.nome
+    }
+
     const perda = {
       id: `P${Date.now()}`,
-      produtoId: produto.id,
-      produtoNome: produto.nome,
+      produtoId: novaPerda.produtoId,
+      produtoNome: itemNome,
       quantidade,
-      custoUnitario: produto.custoUnitario,
-      custoTotal: produto.custoUnitario * quantidade,
+      custoUnitario: valor / quantidade,
+      custoTotal: valor,
       funcionarioId: funcionario.id,
       funcionarioNome: funcionario.nome,
       categoriaId: categoria.id,
@@ -321,7 +342,7 @@ export default function GestaoInventarioPage() {
     adicionarPerda(perda)
     mostrarToast("✅ Perda registrada!")
     setDialogNovaPerda(false)
-    setNovaPerda({ produtoId: "", quantidade: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+    setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
   }
 
   // Filtros
@@ -949,22 +970,117 @@ export default function GestaoInventarioPage() {
                       <DialogTitle>Registrar Nova Perda</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                      <div className="space-y-2">
-                        <Label>Produto *</Label>
-                        <Select value={novaPerda.produtoId} onValueChange={(v) => setNovaPerda({ ...novaPerda, produtoId: v })}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o produto" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {produtos.filter(p => p.ativo).map(produto => (
-                              <SelectItem key={produto.id} value={produto.id}>
-                                {produto.nome} - Custo: R$ {produto.custoUnitario.toFixed(2)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      {/* Linha 1: Tipo e Produto/Serviço */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Tipo *</Label>
+                          <Select value={novaPerda.tipo} onValueChange={(v) => setNovaPerda({ ...novaPerda, tipo: v as 'produto' | 'servico', produtoId: "", valor: "" })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="produto">Produto</SelectItem>
+                              <SelectItem value="servico">Serviço</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>{novaPerda.tipo === 'produto' ? 'Produto' : 'Serviço'} *</Label>
+                          <Select value={novaPerda.produtoId} onValueChange={(v) => {
+                            setNovaPerda({ ...novaPerda, produtoId: v })
+                            // Auto-preencher valor baseado no custo do item selecionado
+                            if (novaPerda.tipo === 'produto') {
+                              const prod = produtos.find(p => p.id === v)
+                              if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                            } else {
+                              const serv = servicos.find(s => s.id === v)
+                              if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                            }
+                          }}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={`Selecione o ${novaPerda.tipo}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {novaPerda.tipo === 'produto' ? (
+                                produtos.filter(p => p.ativo).map(produto => (
+                                  <SelectItem key={produto.id} value={produto.id}>
+                                    {produto.nome} - Custo: R$ {produto.custoUnitario.toFixed(2)}
+                                  </SelectItem>
+                                ))
+                              ) : (
+                                servicos.filter(s => s.ativo).map(servico => (
+                                  <SelectItem key={servico.id} value={servico.id}>
+                                    {servico.nome} - Preço: R$ {servico.preco.toFixed(2)}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
+                      {/* Linha 2: Valor Unitário */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="valor-perda">Valor Unitário (R$) *</Label>
+                          <div className="flex gap-2 bg-gray-100 rounded-md p-1">
+                            <button
+                              onClick={() => {
+                                setPerdaTipoValor('custo')
+                                if (novaPerda.produtoId) {
+                                  if (novaPerda.tipo === 'produto') {
+                                    const prod = produtos.find(p => p.id === novaPerda.produtoId)
+                                    if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                                  } else {
+                                    const serv = servicos.find(s => s.id === novaPerda.produtoId)
+                                    if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                                  }
+                                }
+                              }}
+                              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                perdaTipoValor === 'custo'
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              Custo
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPerdaTipoValor('preco')
+                                if (novaPerda.produtoId) {
+                                  if (novaPerda.tipo === 'produto') {
+                                    const prod = produtos.find(p => p.id === novaPerda.produtoId)
+                                    if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.preco.toString() }))
+                                  } else {
+                                    const serv = servicos.find(s => s.id === novaPerda.produtoId)
+                                    if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                                  }
+                                }
+                              }}
+                              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                perdaTipoValor === 'preco'
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              Valor Final
+                            </button>
+                          </div>
+                        </div>
+                        <Input
+                          id="valor-perda"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={novaPerda.valor}
+                          onChange={(e) => setNovaPerda({ ...novaPerda, valor: e.target.value })}
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      {/* Linha 3: Quantidade */}
                       <div className="space-y-2">
                         <Label htmlFor="quantidade-perda">Quantidade *</Label>
                         <Input
@@ -976,39 +1092,54 @@ export default function GestaoInventarioPage() {
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <Label>Funcionário Responsável *</Label>
-                        <Select value={novaPerda.funcionarioId} onValueChange={(v) => setNovaPerda({ ...novaPerda, funcionarioId: v })}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione o funcionário" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {funcionarios.filter(f => f.ativo).map(func => (
-                              <SelectItem key={func.id} value={func.id}>
-                                {func.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {/* Linha 4: Total da Perda (calculado automaticamente) */}
+                      {novaPerda.valor && novaPerda.quantidade && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                          <div className="text-sm font-medium text-blue-900">
+                            Total da Perda: R$ {(Number.parseFloat(novaPerda.valor) * Number.parseInt(novaPerda.quantidade)).toFixed(2)}
+                          </div>
+                          <div className="text-xs text-blue-700 mt-1">
+                            {novaPerda.valor} × {novaPerda.quantidade} unidades
+                          </div>
+                        </div>
+                      )}
 
-                      <div className="space-y-2">
-                        <Label>Categoria *</Label>
-                        <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({ ...novaPerda, categoriaId: v })}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione a categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categoriasPerdas.filter(c => c.ativo).map(cat => (
-                              <SelectItem key={cat.id} value={cat.id}>
-                                <div className="flex items-center gap-2">
-                                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.cor }} />
-                                  {cat.nome}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      {/* Linha 5: Funcionário e Categoria */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Funcionário Responsável *</Label>
+                          <Select value={novaPerda.funcionarioId} onValueChange={(v) => setNovaPerda({ ...novaPerda, funcionarioId: v })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o funcionário" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {funcionarios.filter(f => f.ativo).map(func => (
+                                <SelectItem key={func.id} value={func.id}>
+                                  {func.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Categoria *</Label>
+                          <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({ ...novaPerda, categoriaId: v })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a categoria" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoriasPerdas.filter(c => c.ativo).map(cat => (
+                                <SelectItem key={cat.id} value={cat.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.cor }} />
+                                    {cat.nome}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
                       <div className="space-y-2">

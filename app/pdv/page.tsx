@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto } from "@/lib/hooks/useLojaData"
@@ -43,7 +44,10 @@ export default function PDVPage() {
     adicionarVendaPrazo,
     adicionarContaReceber,
     abrirCaixa,
-    caixaAtual
+    caixaAtual,
+    categoriasPerdas,
+    perdas,
+    adicionarPerda
   } = useStore()
 
   // 2. Estados
@@ -71,6 +75,19 @@ export default function PDVPage() {
   const [numeroParcelas, setNumeroParcelas] = useState(1)
   const [dataVencimento, setDataVencimento] = useState("")
   const [pagarServicoDepois, setPagarServicoDepois] = useState(true)
+
+  // Modal de Perda
+  const [dialogNovaPerda, setDialogNovaPerda] = useState(false)
+  const [novaPerda, setNovaPerda] = useState({
+    produtoId: "",
+    tipo: "produto" as 'produto' | 'servico',
+    quantidade: "",
+    valor: "",
+    funcionarioId: "",
+    categoriaId: "",
+    observacoes: ""
+  })
+  const [perdaTipoValor, setPerdaTipoValor] = useState<'custo' | 'preco'>('custo')
 
   // 3. Refs
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -121,6 +138,58 @@ export default function PDVPage() {
     setClienteSelecionadoNome("")
     setSearchClienteQuery("")
     setShowClienteResults(false)
+  }
+
+  const handleRegistrarPerda = () => {
+    if (!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.funcionarioId || !novaPerda.categoriaId || !novaPerda.valor) {
+      mostrarToast("⚠️ Preencha todos os campos obrigatórios")
+      return
+    }
+
+    const quantidade = Number.parseInt(novaPerda.quantidade)
+    const valor = Number.parseFloat(novaPerda.valor)
+
+    if (isNaN(quantidade) || quantidade <= 0 || isNaN(valor) || valor <= 0) {
+      mostrarToast("⚠️ Quantidade e valor devem ser maiores que zero")
+      return
+    }
+
+    const funcionario = funcionarios.find(f => f.id === novaPerda.funcionarioId)
+    const categoria = categoriasPerdas.find(c => c.id === novaPerda.categoriaId)
+
+    if (!funcionario || !categoria) return
+
+    let itemNome = ""
+    if (novaPerda.tipo === 'produto') {
+      const produto = produtos.find(p => p.id === novaPerda.produtoId)
+      if (!produto) return
+      itemNome = produto.nome
+    } else {
+      const servico = servicos.find(s => s.id === novaPerda.produtoId)
+      if (!servico) return
+      itemNome = servico.nome
+    }
+
+    const perda = {
+      id: `P${Date.now()}`,
+      produtoId: novaPerda.produtoId,
+      produtoNome: itemNome,
+      quantidade,
+      custoUnitario: valor / quantidade,
+      custoTotal: valor,
+      funcionarioId: funcionario.id,
+      funcionarioNome: funcionario.nome,
+      categoriaId: categoria.id,
+      categoria: categoria.nome,
+      motivo: categoria.nome,
+      data: new Date().toISOString(),
+      observacoes: novaPerda.observacoes
+    }
+
+    adicionarPerda(perda)
+    mostrarToast("✅ Perda registrada!")
+    setDialogNovaPerda(false)
+    setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
   }
 
   const adicionarItemRapido = useCallback((produtoId: string, tipo: 'produto' | 'servico') => {
@@ -778,19 +847,20 @@ export default function PDVPage() {
           <div className="border-b border-border bg-card/50 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-4 p-4">
               {/* Busca Rápida */}
-              <div className="relative flex-1 max-w-2xl">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Buscar produto ou serviço (F2)..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 h-11 text-base"
-                />
-                {showSearchResults && searchResults.length > 0 && (
-                  <Card className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto shadow-xl">
-                    <CardContent className="p-2">
+              <div className="relative flex-1 max-w-2xl flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Buscar produto ou serviço (F2)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 h-11 text-base"
+                  />
+                  {showSearchResults && searchResults.length > 0 && (
+                    <Card className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto shadow-xl">
+                      <CardContent className="p-2">
                       {searchResults.map((item, index) => (
                         <button
                           key={item.id}
@@ -823,6 +893,17 @@ export default function PDVPage() {
                     </CardContent>
                   </Card>
                 )}
+                </div>
+                <Button
+                  onClick={() => setDialogNovaPerda(true)}
+                  variant="outline"
+                  size="lg"
+                  className="h-11 gap-2"
+                  title="Registrar perda de produto"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Perda</span>
+                </Button>
               </div>
 
               {/* Status e Ações */}
@@ -1311,6 +1392,210 @@ export default function PDVPage() {
             </Button>
             <Button onClick={handleFinalizarVenda}>
               Confirmar Pagamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Registrar Perda */}
+      <Dialog open={dialogNovaPerda} onOpenChange={setDialogNovaPerda}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Registrar Nova Perda</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Linha 1: Tipo e Produto/Serviço */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo *</Label>
+                <Select value={novaPerda.tipo} onValueChange={(v) => setNovaPerda({ ...novaPerda, tipo: v as 'produto' | 'servico', produtoId: "", valor: "" })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="produto">Produto</SelectItem>
+                    <SelectItem value="servico">Serviço</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{novaPerda.tipo === 'produto' ? 'Produto' : 'Serviço'} *</Label>
+                <Select value={novaPerda.produtoId} onValueChange={(v) => {
+                  setNovaPerda({ ...novaPerda, produtoId: v })
+                  // Auto-preencher valor baseado no custo do item selecionado
+                  if (novaPerda.tipo === 'produto') {
+                    const prod = produtos.find(p => p.id === v)
+                    if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                  } else {
+                    const serv = servicos.find(s => s.id === v)
+                    if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={`Selecione o ${novaPerda.tipo}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {novaPerda.tipo === 'produto' ? (
+                      produtos.filter(p => p.ativo).map(produto => (
+                        <SelectItem key={produto.id} value={produto.id}>
+                          {produto.nome} - Custo: R$ {produto.custoUnitario.toFixed(2)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      servicos.filter(s => s.ativo).map(servico => (
+                        <SelectItem key={servico.id} value={servico.id}>
+                          {servico.nome} - Preço: R$ {servico.preco.toFixed(2)}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Linha 2: Valor Unitário */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="valor-perda">Valor Unitário (R$) *</Label>
+                <div className="flex gap-2 bg-gray-100 rounded-md p-1">
+                  <button
+                    onClick={() => {
+                      setPerdaTipoValor('custo')
+                      if (novaPerda.produtoId) {
+                        if (novaPerda.tipo === 'produto') {
+                          const prod = produtos.find(p => p.id === novaPerda.produtoId)
+                          if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                        } else {
+                          const serv = servicos.find(s => s.id === novaPerda.produtoId)
+                          if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      perdaTipoValor === 'custo'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Custo
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPerdaTipoValor('preco')
+                      if (novaPerda.produtoId) {
+                        if (novaPerda.tipo === 'produto') {
+                          const prod = produtos.find(p => p.id === novaPerda.produtoId)
+                          if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.preco.toString() }))
+                        } else {
+                          const serv = servicos.find(s => s.id === novaPerda.produtoId)
+                          if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      perdaTipoValor === 'preco'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Valor Final
+                  </button>
+                </div>
+              </div>
+              <Input
+                id="valor-perda"
+                type="number"
+                step="0.01"
+                min="0"
+                value={novaPerda.valor}
+                onChange={(e) => setNovaPerda({ ...novaPerda, valor: e.target.value })}
+                placeholder="0.00"
+              />
+            </div>
+
+            {/* Linha 3: Quantidade */}
+            <div className="space-y-2">
+              <Label htmlFor="quantidade-perda">Quantidade *</Label>
+              <Input
+                id="quantidade-perda"
+                type="number"
+                min="1"
+                value={novaPerda.quantidade}
+                onChange={(e) => setNovaPerda({ ...novaPerda, quantidade: e.target.value })}
+              />
+            </div>
+
+            {/* Linha 4: Total da Perda (calculado automaticamente) */}
+            {novaPerda.valor && novaPerda.quantidade && (
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <div className="text-sm font-medium text-blue-900">
+                  Total da Perda: R$ {(Number.parseFloat(novaPerda.valor) * Number.parseInt(novaPerda.quantidade)).toFixed(2)}
+                </div>
+                <div className="text-xs text-blue-700 mt-1">
+                  {novaPerda.valor} × {novaPerda.quantidade} unidades
+                </div>
+              </div>
+            )}
+
+            {/* Linha 5: Funcionário e Categoria */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Funcionário Responsável *</Label>
+                <Select value={novaPerda.funcionarioId} onValueChange={(v) => setNovaPerda({ ...novaPerda, funcionarioId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o funcionário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {funcionarios.filter(f => f.ativo).map(func => (
+                      <SelectItem key={func.id} value={func.id}>
+                        {func.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoria *</Label>
+                <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({ ...novaPerda, categoriaId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoriasPerdas.filter(c => c.ativo).map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.cor }} />
+                          {cat.nome}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="observacoes-perda">Observações</Label>
+              <Textarea
+                id="observacoes-perda"
+                value={novaPerda.observacoes}
+                onChange={(e) => setNovaPerda({ ...novaPerda, observacoes: e.target.value })}
+                placeholder="Detalhes adicionais..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setDialogNovaPerda(false)
+              setNovaPerda({ produtoId: "", quantidade: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+            }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleRegistrarPerda} className="bg-orange-500 hover:bg-orange-600">
+              Registrar Perda
             </Button>
           </DialogFooter>
         </DialogContent>
