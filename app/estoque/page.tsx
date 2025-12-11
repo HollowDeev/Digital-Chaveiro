@@ -1259,11 +1259,10 @@ export default function GestaoInventarioPage() {
                                   }
                                 }
                               }}
-                              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                perdaTipoValor === 'custo'
+                              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'custo'
                                   ? 'bg-primary text-primary-foreground'
                                   : 'text-muted-foreground hover:text-foreground'
-                              }`}
+                                }`}
                             >
                               Custo
                             </button>
@@ -1280,11 +1279,10 @@ export default function GestaoInventarioPage() {
                                   }
                                 }
                               }}
-                              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                                perdaTipoValor === 'preco'
+                              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'preco'
                                   ? 'bg-primary text-primary-foreground'
                                   : 'text-muted-foreground hover:text-foreground'
-                              }`}
+                                }`}
                             >
                               Valor Final
                             </button>
@@ -1576,7 +1574,7 @@ export default function GestaoInventarioPage() {
                 />
               </div>
 
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => {
                   if (servicoEditando) {
@@ -1608,7 +1606,7 @@ export default function GestaoInventarioPage() {
           <DialogHeader>
             <DialogTitle>Gerenciar Custos - {servicoSelecionadoParaCustos?.nome}</DialogTitle>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4">
             {/* Lista de custos existentes */}
             {servicoSelecionadoParaCustos?.custos && servicoSelecionadoParaCustos.custos.length > 0 && (

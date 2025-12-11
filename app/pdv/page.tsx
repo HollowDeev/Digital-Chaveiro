@@ -31,10 +31,10 @@ export default function PDVPage() {
   const { clientes } = useClientes(lojaId)
   const { funcionarios } = useFuncionarios(lojaId)
   const { caixaAtual: caixaAbertoDB, refetch: refetchCaixa } = useCaixaAberto(lojaId)
-  
+
   // Cache do caixa
   const { caixaAberto: caixaAbertoCached, isHydrated, salvarCache, limparCache } = useCaixaCache()
-  
+
   // Verificação silenciosa do caixa
   const { caixa: caixaVerificado, isVerifying: isVerifyingCaixa, verificacaoCompleta } = useCaixaVerification(lojaId)
 
@@ -913,38 +913,38 @@ export default function PDVPage() {
                   {showSearchResults && searchResults.length > 0 && (
                     <Card className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto shadow-xl">
                       <CardContent className="p-2">
-                      {searchResults.map((item, index) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            adicionarItemRapido(item.id, item.tipo)
-                            setSearchQuery("")
-                            setShowSearchResults(false)
-                          }}
-                          className={cn(
-                            "w-full flex items-center justify-between rounded-md p-3 text-left transition-colors",
-                            index === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
-                          )}
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{item.nome}</span>
-                              <Badge variant={item.tipo === 'produto' ? 'default' : 'secondary'} className="text-xs">
-                                {item.tipo === 'produto' ? 'Produto' : 'Serviço'}
-                              </Badge>
-                              {item.estoque !== undefined && item.estoque <= 5 && (
-                                <Badge variant="destructive" className="text-xs">
-                                  Estoque: {item.estoque}
+                        {searchResults.map((item, index) => (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              adicionarItemRapido(item.id, item.tipo)
+                              setSearchQuery("")
+                              setShowSearchResults(false)
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between rounded-md p-3 text-left transition-colors",
+                              index === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
+                            )}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{item.nome}</span>
+                                <Badge variant={item.tipo === 'produto' ? 'default' : 'secondary'} className="text-xs">
+                                  {item.tipo === 'produto' ? 'Produto' : 'Serviço'}
                                 </Badge>
-                              )}
+                                {item.estoque !== undefined && item.estoque <= 5 && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Estoque: {item.estoque}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <span className="font-bold text-primary">R$ {item.preco.toFixed(2)}</span>
-                        </button>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
+                            <span className="font-bold text-primary">R$ {item.preco.toFixed(2)}</span>
+                          </button>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
                 <Button
                   onClick={() => setDialogNovaPerda(true)}
@@ -1534,11 +1534,10 @@ export default function PDVPage() {
                         }
                       }
                     }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      perdaTipoValor === 'custo'
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'custo'
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                      }`}
                   >
                     Custo
                   </button>
@@ -1555,11 +1554,10 @@ export default function PDVPage() {
                         }
                       }
                     }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      perdaTipoValor === 'preco'
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'preco'
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                      }`}
                   >
                     Valor Final
                   </button>
