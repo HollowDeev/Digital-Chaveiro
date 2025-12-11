@@ -232,6 +232,19 @@ export default function PDVPage() {
     return Math.max(0, recebido - total)
   }
 
+  // Função auxiliar para calcular soma dos custos de um serviço
+  const calcularSomaCustosServico = (servicoId: string): number => {
+    const servico = servicos.find(s => s.id === servicoId)
+    if (!servico || !servico.custos || servico.custos.length === 0) {
+      return 0
+    }
+    const soma = servico.custos.reduce((acc, custo) => {
+      const valor = typeof custo.valor === 'string' ? parseFloat(custo.valor) : Number(custo.valor)
+      return acc + valor
+    }, 0)
+    return soma
+  }
+
   const handleAbrirCaixa = async () => {
     if (!funcionarioIdCaixa) {
       mostrarToast("⚠️ Selecione um funcionário")
@@ -1422,15 +1435,24 @@ export default function PDVPage() {
               <div className="space-y-2">
                 <Label>{novaPerda.tipo === 'produto' ? 'Produto' : 'Serviço'} *</Label>
                 <Select value={novaPerda.produtoId} onValueChange={(v) => {
-                  setNovaPerda({ ...novaPerda, produtoId: v })
                   // Auto-preencher valor baseado no custo do item selecionado
+                  let novoValor = ""
                   if (novaPerda.tipo === 'produto') {
                     const prod = produtos.find(p => p.id === v)
-                    if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                    novoValor = prod ? prod.custoUnitario.toString() : ""
                   } else {
                     const serv = servicos.find(s => s.id === v)
-                    if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                    if (serv) {
+                      // Se perdaTipoValor for 'custo', usar soma dos custos; senão usar preço
+                      if (perdaTipoValor === 'custo') {
+                        const somaCustos = calcularSomaCustosServico(v)
+                        novoValor = somaCustos.toString()
+                      } else {
+                        novoValor = serv.preco.toString()
+                      }
+                    }
                   }
+                  setNovaPerda({ ...novaPerda, produtoId: v, valor: novoValor })
                 }}>
                   <SelectTrigger>
                     <SelectValue placeholder={`Selecione o ${novaPerda.tipo}`} />
@@ -1467,8 +1489,9 @@ export default function PDVPage() {
                           const prod = produtos.find(p => p.id === novaPerda.produtoId)
                           if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
                         } else {
-                          const serv = servicos.find(s => s.id === novaPerda.produtoId)
-                          if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                          // Para serviços, usar a soma dos custos
+                          const somaCustos = calcularSomaCustosServico(novaPerda.produtoId)
+                          setNovaPerda(prev => ({ ...prev, valor: somaCustos.toString() }))
                         }
                       }
                     }}
