@@ -63,6 +63,11 @@ export default function GestaoInventarioPage() {
     valor: ""
   })
 
+  const [custosTemporarios, setCustosTemporarios] = useState<Array<{
+    nome: string
+    valor: number
+  }>>([])
+
   const [entradaEstoque, setEntradaEstoque] = useState({
     produtoId: "",
     quantidade: "",
@@ -226,7 +231,7 @@ export default function GestaoInventarioPage() {
     }
 
     const supabase = createClient()
-    const { error } = await supabase.from("servicos").insert({
+    const { data: servicoData, error: servicoError } = await supabase.from("servicos").insert({
       loja_id: lojaId,
       nome: novoServico.nome,
       preco: Number.parseFloat(novoServico.preco) || 0,
@@ -234,17 +239,37 @@ export default function GestaoInventarioPage() {
       duracao_estimada: Number.parseInt(novoServico.duracao) || null,
       descricao: novoServico.descricao,
       ativo: true
-    })
+    }).select().single()
 
-    if (error) {
+    if (servicoError) {
       mostrarToast("❌ Erro ao criar serviço")
-      console.error(error)
-    } else {
-      mostrarToast("✅ Serviço criado com sucesso!")
-      setDialogNovoServico(false)
-      setNovoServico({ nome: "", codigo: "", categoria: "", preco: "", custo_unitario: "", duracao: "", descricao: "" })
-      refetchServicos()
+      console.error(servicoError)
+      return
     }
+
+    // Salvar custos temporários se houver
+    if (custosTemporarios.length > 0 && servicoData) {
+      const custosParaInserir = custosTemporarios.map(custo => ({
+        servico_id: servicoData.id,
+        nome: custo.nome,
+        valor: custo.valor
+      }))
+
+      const { error: custosError } = await supabase
+        .from("servicos_custos")
+        .insert(custosParaInserir)
+
+      if (custosError) {
+        mostrarToast("⚠️ Serviço criado, mas houve erro ao salvar custos")
+        console.error(custosError)
+      }
+    }
+
+    mostrarToast("✅ Serviço criado com sucesso!")
+    setDialogNovoServico(false)
+    setNovoServico({ nome: "", codigo: "", categoria: "", preco: "", custo_unitario: "", duracao: "", descricao: "" })
+    setCustosTemporarios([])
+    refetchServicos()
   }
 
   // Gerenciar custos de serviço
@@ -282,6 +307,41 @@ export default function GestaoInventarioPage() {
       mostrarToast("✅ Custo deletado com sucesso!")
       refetchServicos()
     }
+  }
+
+  // Gerenciar custos temporários (durante criação de novo serviço)
+  const handleAdicionarCustoTemporario = () => {
+    if (!novoCusto.nome || !novoCusto.valor) {
+      mostrarToast("⚠️ Preencha nome e valor do custo")
+      return
+    }
+
+    setCustosTemporarios([
+      ...custosTemporarios,
+      {
+        nome: novoCusto.nome,
+        valor: Number.parseFloat(novoCusto.valor) || 0
+      }
+    ])
+    setNovoCusto({ nome: "", valor: "" })
+  }
+
+  const handleDeletarCustoTemporario = (index: number) => {
+    setCustosTemporarios(custosTemporarios.filter((_, i) => i !== index))
+  }
+
+  const handleLimparCustosTemporarios = () => {
+    setCustosTemporarios([])
+    setNovoCusto({ nome: "", valor: "" })
+  }
+
+  // Função auxiliar para calcular soma dos custos de um serviço
+  const calcularSomaCustosServico = (servicoId: string): number => {
+    const servico = servicos.find(s => s.id === servicoId)
+    if (!servico || !servico.custos || servico.custos.length === 0) {
+      return 0
+    }
+    return servico.custos.reduce((acc, custo) => acc + Number(custo.valor), 0)
   }
 
   const handleAtualizarServico = async () => {
@@ -713,6 +773,83 @@ export default function GestaoInventarioPage() {
                         rows={3}
                       />
                     </div>
+
+                    {/* Seção de Custos Temporários */}
+                    <div className="border-t pt-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-semibold">Custos (Opcional)</Label>
+                        {custosTemporarios.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleLimparCustosTemporarios}
+                            className="text-xs text-muted-foreground"
+                          >
+                            Limpar tudo
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Lista de custos adicionados */}
+                      {custosTemporarios.length > 0 && (
+                        <div className="space-y-2">
+                          {custosTemporarios.map((custo, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+                            >
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{custo.nome}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  R$ {custo.valor.toFixed(2)}
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeletarCustoTemporario(index)}
+                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Formulário para adicionar novo custo */}
+                      <div className="space-y-2">
+                        <Label htmlFor="custo-nome-novo">Nome do Custo</Label>
+                        <Input
+                          id="custo-nome-novo"
+                          placeholder="Ex: Transporte, Material"
+                          value={novoCusto.nome}
+                          onChange={(e) => setNovoCusto({ ...novoCusto, nome: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="custo-valor-novo">Valor (R$)</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="custo-valor-novo"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={novoCusto.valor}
+                            onChange={(e) => setNovoCusto({ ...novoCusto, valor: e.target.value })}
+                          />
+                          <Button
+                            onClick={handleAdicionarCustoTemporario}
+                            variant="outline"
+                            className="px-4"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setDialogNovoServico(false)}>
@@ -1059,7 +1196,15 @@ export default function GestaoInventarioPage() {
                               if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
                             } else {
                               const serv = servicos.find(s => s.id === v)
-                              if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                              if (serv) {
+                                // Se for serviço e perdaTipoValor for 'custo', usar soma dos custos
+                                if (perdaTipoValor === 'custo') {
+                                  const somaCustos = calcularSomaCustosServico(v)
+                                  setNovaPerda(prev => ({ ...prev, valor: somaCustos.toString() }))
+                                } else {
+                                  setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                                }
+                              }
                             }
                           }}>
                             <SelectTrigger>
@@ -1073,11 +1218,15 @@ export default function GestaoInventarioPage() {
                                   </SelectItem>
                                 ))
                               ) : (
-                                servicos.filter(s => s.ativo).map(servico => (
-                                  <SelectItem key={servico.id} value={servico.id}>
-                                    {servico.nome} - Preço: R$ {servico.preco.toFixed(2)}
-                                  </SelectItem>
-                                ))
+                                servicos.filter(s => s.ativo).map(servico => {
+                                  const somaCustos = calcularSomaCustosServico(servico.id)
+                                  return (
+                                    <SelectItem key={servico.id} value={servico.id}>
+                                      {servico.nome} - Preço: R$ {servico.preco.toFixed(2)}
+                                      {somaCustos > 0 && ` • Custos: R$ ${somaCustos.toFixed(2)}`}
+                                    </SelectItem>
+                                  )
+                                })
                               )}
                             </SelectContent>
                           </Select>
@@ -1097,8 +1246,9 @@ export default function GestaoInventarioPage() {
                                     const prod = produtos.find(p => p.id === novaPerda.produtoId)
                                     if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
                                   } else {
-                                    const serv = servicos.find(s => s.id === novaPerda.produtoId)
-                                    if (serv) setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                                    // Para serviços, usar a soma dos custos
+                                    const somaCustos = calcularSomaCustosServico(novaPerda.produtoId)
+                                    setNovaPerda(prev => ({ ...prev, valor: somaCustos.toString() }))
                                   }
                                 }
                               }}
