@@ -39,25 +39,40 @@ export default function ServicosPage() {
     const router = useRouter()
     const { lojaAtual } = useLoja()
     const lojaId = lojaAtual?.id
-    const { servicosRealizados, loading, refetch } = useServicosRealizados(lojaId)
+    const { servicosRealizados, loading, refetch, removeServicoLocal } = useServicosRealizados(lojaId)
     const { motivos } = useMotivosProblemas(lojaId)
     const { funcionarios } = useFuncionarios(lojaId)
 
     const [busca, setBusca] = useState("")
     const [modalAberto, setModalAberto] = useState(false)
+    const [modalRemover, setModalRemover] = useState(false)
+    const [servicoParaRemover, setServicoParaRemover] = useState<any>(null)
+    const [motivoRemocao, setMotivoRemocao] = useState("")
     const [servicoSelecionado, setServicoSelecionado] = useState<any>(null)
     const [ocorreuPerfeitamente, setOcorreuPerfeitamente] = useState<boolean | null>(null)
     const [problemas, setProblemas] = useState<any[]>([])
+    const [problemasSalvos, setProblemasSalvos] = useState<any[]>([])
     const [arquivosComprovacao, setArquivosComprovacao] = useState<File[]>([])
     const [funcionarioResponsavel, setFuncionarioResponsavel] = useState("")
     const [termoAceito, setTermoAceito] = useState(false)
     const [salvando, setSalvando] = useState(false)
+    const [servicoPago, setServicoPago] = useState(false)
+    const [formaPagamento, setFormaPagamento] = useState<"dinheiro" | "cartao_credito" | "cartao_debito" | "pix" | "outros" | "aprazo">("dinheiro")
+    const [tipoFinalizacao, setTipoFinalizacao] = useState<"salvar_problemas" | "finalizar" | null>(null)
+    const [fotoSelecionada, setFotoSelecionada] = useState<any>(null)
+    const [modalFoto, setModalFoto] = useState(false)
+    const [fotosComprovacao, setFotosComprovacao] = useState<any[]>([])
 
     // Separar serviços por status
     const servicosAbertos = servicosRealizados.filter(
         (s) => s.status === "aberto" || s.status === "em_andamento"
     )
     const servicosFinalizados = servicosRealizados.filter((s) => s.status === "finalizado")
+
+    console.log("Total de serviços:", servicosRealizados.length)
+    console.log("Serviços abertos:", servicosAbertos.length)
+    console.log("Serviços finalizados:", servicosFinalizados.length)
+    console.log("Todos os serviços:", servicosRealizados.map(s => ({ id: s.id, status: s.status, nome: s.servico?.nome })))
 
     // Filtrar serviços pela busca
     const filtrarServicos = (servicos: any[]) => {
@@ -73,11 +88,137 @@ export default function ServicosPage() {
     const handleFinalizarClick = (servico: any) => {
         setServicoSelecionado(servico)
         setModalAberto(true)
-        setOcorreuPerfeitamente(null)
+        setOcorreuPerfeitamente(servico.problemas_salvos ? null : null)
         setProblemas([])
         setArquivosComprovacao([])
         setFuncionarioResponsavel("")
         setTermoAceito(false)
+        setServicoPago(servico.pago || false)
+        setFormaPagamento("dinheiro")
+        setTipoFinalizacao(null)
+
+        // Carregar problemas e fotos de comprovação salvos anteriormente
+        carregarProblemasSalvos(servico.id)
+        carregarFotosComprovacao(servico.id)
+    }
+
+    const downloadArquivo = async (arquivo: any) => {
+        try {
+            const supabase = createClient()
+
+            // Extrair o caminho do arquivo da URL
+            const urlParts = arquivo.url.split('/servicos-arquivos/')
+            if (urlParts.length !== 2) {
+                throw new Error("URL inválida")
+            }
+            const caminhoArquivo = urlParts[1]
+
+            console.log("Tentando baixar:", caminhoArquivo)
+
+            // Usar o método download do Supabase
+            const { data, error } = await supabase.storage
+                .from('servicos-arquivos')
+                .download(caminhoArquivo)
+
+            if (error) {
+                console.error("Erro no download do Supabase:", error)
+                throw error
+            }
+
+            if (data) {
+                const url = window.URL.createObjectURL(data)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = arquivo.nome_arquivo
+                document.body.appendChild(a)
+                a.click()
+                window.URL.revokeObjectURL(url)
+                document.body.removeChild(a)
+                alert("Arquivo baixado com sucesso!")
+            }
+        } catch (error) {
+            console.error("Erro ao baixar arquivo:", error)
+            alert("Erro ao baixar arquivo. Tente novamente.")
+        }
+    }
+
+    const carregarProblemasSalvos = async (servicoId: string) => {
+        try {
+            const supabase = createClient()
+
+            // Carregar problemas
+            const { data: problemas, error: problemasError } = await supabase
+                .from("servicos_problemas")
+                .select("*")
+                .eq("servico_realizado_id", servicoId)
+
+            if (problemasError) {
+                console.error("Erro ao carregar problemas:", problemasError)
+                throw problemasError
+            }
+
+            // Enriquecer problemas com motivos e arquivos
+            const problemasEnriquecidos = await Promise.all(
+                (problemas || []).map(async (problema) => {
+                    // Carregar motivo
+                    const { data: motivo } = await supabase
+                        .from("motivos_problemas_servicos")
+                        .select("id, nome")
+                        .eq("id", problema.motivo_id)
+                        .single()
+
+                    // Carregar arquivos APENAS do problema específico
+                    const { data: arquivos } = await supabase
+                        .from("servicos_arquivos")
+                        .select("id, url, nome_arquivo, tipo")
+                        .eq("servico_realizado_id", servicoId)
+                        .eq("tipo", "problema")
+
+                    console.log(`Arquivos para problema ${problema.id}:`, arquivos)
+
+                    return {
+                        ...problema,
+                        motivo: motivo,
+                        arquivos: arquivos || []
+                    }
+                })
+            )
+
+            setProblemasSalvos(problemasEnriquecidos)
+            console.log("Problemas salvos carregados:", problemasEnriquecidos)
+        } catch (error: any) {
+            console.error("Erro ao carregar problemas salvos:", error)
+            setProblemasSalvos([])
+        }
+    }
+
+    const carregarFotosComprovacao = async (servicoId: string) => {
+        try {
+            const supabase = createClient()
+
+            const { data: arquivos, error } = await supabase
+                .from("servicos_arquivos")
+                .select("id, url, nome_arquivo, tipo")
+                .eq("servico_realizado_id", servicoId)
+                .eq("tipo", "comprovacao")
+
+            if (error) {
+                console.error("Erro ao carregar fotos de comprovação:", error)
+                return
+            }
+
+            setFotosComprovacao(arquivos || [])
+            console.log("Fotos de comprovação carregadas:", arquivos)
+        } catch (error: any) {
+            console.error("Erro ao carregar fotos de comprovação:", error)
+            setFotosComprovacao([])
+        }
+    }
+
+    const handleRemoverClick = (servico: any) => {
+        setServicoParaRemover(servico)
+        setModalRemover(true)
+        setMotivoRemocao("")
     }
 
     const adicionarProblema = () => {
@@ -125,10 +266,10 @@ export default function ServicosPage() {
         )
     }
 
-    const uploadArquivo = async (file: File, servicoRealizadoId: string, tipo: string) => {
+    const uploadArquivo = async (file: File, servicoId: string, tipo: string) => {
         const supabase = createClient()
         const fileExt = file.name.split(".").pop()
-        const fileName = `${servicoRealizadoId}/${tipo}/${Date.now()}.${fileExt}`
+        const fileName = `${servicoId}/${tipo}-${Date.now()}.${fileExt}`
 
         const { data, error } = await supabase.storage
             .from("servicos-arquivos")
@@ -136,11 +277,94 @@ export default function ServicosPage() {
 
         if (error) throw error
 
-        const {
-            data: { publicUrl },
-        } = supabase.storage.from("servicos-arquivos").getPublicUrl(fileName)
+        const { data: publicUrlData } = supabase.storage.from("servicos-arquivos").getPublicUrl(fileName)
 
-        return { url: publicUrl, nome_arquivo: file.name }
+        console.log("URL pública gerada:", publicUrlData.publicUrl)
+
+        return { url: publicUrlData.publicUrl, nome_arquivo: file.name }
+    }
+
+    const handleSalvarProblemas = async () => {
+        if (!ocorreuPerfeitamente === false || problemas.length === 0) {
+            alert("Adicione pelo menos um problema antes de salvar")
+            return
+        }
+
+        setSalvando(true)
+
+        try {
+            const supabase = createClient()
+            const {
+                data: { user },
+            } = await supabase.auth.getUser()
+
+            if (!user) throw new Error("Usuário não autenticado")
+
+            // Registrar problemas
+            for (const problema of problemas) {
+                const problemaData: any = {
+                    servico_realizado_id: servicoSelecionado.id,
+                    motivo_id: problema.motivo_id,
+                    culpado: problema.culpado,
+                    descricao: problema.descricao,
+                    custo_extra: problema.custo_extra || 0,
+                    registrado_por: user.id,
+                    termo_aceito: true,
+                    termo_aceito_em: new Date().toISOString(),
+                }
+
+                // Só adiciona culpado_funcionario_id se for funcionário e tiver ID válido
+                if (problema.culpado === "funcionario" && problema.culpado_funcionario_id && problema.culpado_funcionario_id.trim() !== "") {
+                    problemaData.culpado_funcionario_id = problema.culpado_funcionario_id
+                }
+
+                console.log("Dados do problema a serem salvos:", problemaData)
+
+                const { data: problemaInserted, error: problemaError } = await supabase
+                    .from("servicos_problemas")
+                    .insert(problemaData)
+                    .select()
+                    .single()
+
+                if (problemaError) throw problemaError
+
+                // Upload de arquivos do problema
+                if (problema.arquivos && problema.arquivos.length > 0) {
+                    for (const arquivo of problema.arquivos) {
+                        const { url, nome_arquivo } = await uploadArquivo(
+                            arquivo,
+                            servicoSelecionado.id,
+                            "problema"
+                        )
+
+                        await supabase.from("servicos_arquivos").insert({
+                            servico_realizado_id: servicoSelecionado.id,
+                            tipo: "problema",
+                            url,
+                            nome_arquivo,
+                            tamanho: arquivo.size,
+                            mime_type: arquivo.type,
+                            uploaded_by: user.id,
+                        })
+                    }
+                }
+            }
+
+            // Atualizar flag problemas_salvos
+            await supabase
+                .from("servicos_realizados")
+                .update({ problemas_salvos: true })
+                .eq("id", servicoSelecionado.id)
+
+            alert("Problemas salvos com sucesso! Você pode finalizar o serviço posteriormente.")
+            setModalAberto(false)
+            refetch()
+        } catch (error: any) {
+            console.error("Erro ao salvar problemas:", error)
+            alert(`Erro ao salvar problemas: ${error?.message || "Erro desconhecido"}`)
+        } finally {
+            setSalvando(false)
+        }
     }
 
     const handleFinalizar = async () => {
@@ -149,14 +373,22 @@ export default function ServicosPage() {
             return
         }
 
-        if (ocorreuPerfeitamente === null) {
-            alert("Informe se o serviço ocorreu perfeitamente")
+        if (!servicoSelecionado.pago && !servicoPago) {
+            alert("Marque o serviço como pago antes de finalizar")
             return
         }
 
-        if (!ocorreuPerfeitamente && problemas.length === 0) {
-            alert("Adicione pelo menos um problema reportado")
-            return
+        // Se o serviço já teve problemas salvos, pode finalizar sem preencher "ocorreu perfeitamente"
+        if (!servicoSelecionado.problemas_salvos) {
+            if (ocorreuPerfeitamente === null) {
+                alert("Informe se o serviço ocorreu perfeitamente")
+                return
+            }
+
+            if (!ocorreuPerfeitamente && problemas.length === 0) {
+                alert("Adicione pelo menos um problema reportado")
+                return
+            }
         }
 
         setSalvando(true)
@@ -167,7 +399,7 @@ export default function ServicosPage() {
             console.log("ocorreuPerfeitamente:", ocorreuPerfeitamente)
             console.log("problemas:", problemas)
             console.log("arquivosComprovacao:", arquivosComprovacao)
-            
+
             const supabase = createClient()
             const {
                 data: { user },
@@ -185,6 +417,7 @@ export default function ServicosPage() {
                     status: "finalizado",
                     data_conclusao: new Date().toISOString(),
                     funcionario_responsavel_id: funcionarioResponsavel,
+                    pago: true,
                 })
                 .eq("id", servicoSelecionado.id)
 
@@ -222,19 +455,28 @@ export default function ServicosPage() {
                 console.log("Registrando problemas...")
                 for (const problema of problemas) {
                     console.log("Inserindo problema:", problema)
-                    const { data: problemaData, error: problemaError } = await supabase
+
+                    const problemaData: any = {
+                        servico_realizado_id: servicoSelecionado.id,
+                        motivo_id: problema.motivo_id,
+                        culpado: problema.culpado,
+                        descricao: problema.descricao,
+                        custo_extra: problema.custo_extra || 0,
+                        registrado_por: user.id,
+                        termo_aceito: true,
+                        termo_aceito_em: new Date().toISOString(),
+                    }
+
+                    // Só adiciona culpado_funcionario_id se for funcionário e tiver ID válido
+                    if (problema.culpado === "funcionario" && problema.culpado_funcionario_id && problema.culpado_funcionario_id.trim() !== "") {
+                        problemaData.culpado_funcionario_id = problema.culpado_funcionario_id
+                    }
+
+                    console.log("Dados do problema a serem salvos:", problemaData)
+
+                    const { data: problemaInserted, error: problemaError } = await supabase
                         .from("servicos_problemas")
-                        .insert({
-                            servico_realizado_id: servicoSelecionado.id,
-                            motivo_id: problema.motivo_id,
-                            culpado: problema.culpado,
-                            culpado_funcionario_id: problema.culpado_funcionario_id,
-                            descricao: problema.descricao,
-                            custo_extra: problema.custo_extra || 0,
-                            registrado_por: user.id,
-                            termo_aceito: true,
-                            termo_aceito_em: new Date().toISOString(),
-                        })
+                        .insert(problemaData)
                         .select()
                         .single()
 
@@ -243,7 +485,7 @@ export default function ServicosPage() {
                         throw problemaError
                     }
 
-                    console.log("Problema registrado:", problemaData)
+                    console.log("Problema registrado:", problemaInserted)
 
                     // Upload de arquivos do problema
                     if (problema.arquivos && problema.arquivos.length > 0) {
@@ -280,6 +522,82 @@ export default function ServicosPage() {
                 hint: error?.hint,
             })
             alert(`Erro ao finalizar serviço: ${error?.message || "Erro desconhecido"}. Verifique o console para mais detalhes.`)
+        } finally {
+            setSalvando(false)
+        }
+    }
+
+    const handleRemover = async () => {
+        if (!motivoRemocao.trim()) {
+            alert("Informe o motivo da remoção")
+            return
+        }
+
+        setSalvando(true)
+
+        try {
+            const supabase = createClient()
+            const {
+                data: { user },
+            } = await supabase.auth.getUser()
+
+            if (!user) throw new Error("Usuário não autenticado")
+
+            // Buscar dados completos do serviço
+            const { data: servicoCompleto } = await supabase
+                .from("servicos_realizados")
+                .select(`
+                    *,
+                    servico:servicos(*),
+                    cliente:clientes(*),
+                    venda:vendas(*)
+                `)
+                .eq("id", servicoParaRemover.id)
+                .single()
+
+            // Inserir na tabela de removidos
+            const { error: insertError } = await supabase
+                .from("servicos_removidos")
+                .insert({
+                    servico_realizado_id: servicoParaRemover.id,
+                    loja_id: servicoParaRemover.loja_id,
+                    venda_id: servicoParaRemover.venda_id,
+                    servico_id: servicoParaRemover.servico_id,
+                    cliente_id: servicoParaRemover.cliente_id,
+                    funcionario_responsavel_id: servicoParaRemover.funcionario_responsavel_id,
+                    status: servicoParaRemover.status,
+                    data_inicio: servicoParaRemover.data_inicio,
+                    data_conclusao: servicoParaRemover.data_conclusao,
+                    observacoes: servicoParaRemover.observacoes,
+                    motivo_remocao: motivoRemocao,
+                    removido_por: user.id,
+                    dados_completos: servicoCompleto,
+                })
+
+            if (insertError) throw insertError
+
+            // Deletar o serviço
+            const { error: deleteError } = await supabase
+                .from("servicos_realizados")
+                .delete()
+                .eq("id", servicoParaRemover.id)
+
+            if (deleteError) throw deleteError
+
+            alert("Serviço removido com sucesso!")
+            setModalRemover(false)
+            setMotivoRemocao("")
+            setServicoParaRemover(null)
+            // Atualiza imediatamente a lista local para sumir da UI
+            removeServicoLocal(servicoParaRemover.id)
+
+            console.log("Chamando refetch após remoção...")
+            // Recarregar serviços
+            await refetch()
+            console.log("Refetch concluído")
+        } catch (error: any) {
+            console.error("Erro ao remover serviço:", error)
+            alert(`Erro ao remover serviço: ${error?.message || "Erro desconhecido"}`)
         } finally {
             setSalvando(false)
         }
@@ -407,7 +725,7 @@ export default function ServicosPage() {
                                                 </div>
                                             </div>
                                             <Button onClick={() => handleFinalizarClick(servico)}>
-                                                Finalizar
+                                                Verificar
                                             </Button>
                                         </div>
                                     </Card>
@@ -425,48 +743,94 @@ export default function ServicosPage() {
                                 </Card>
                             ) : (
                                 filtrarServicos(servicosFinalizados).map((servico) => (
-                                    <Card key={servico.id} className="p-4">
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h3 className="text-lg font-semibold">
-                                                    {servico.servico?.nome || "Serviço"}
-                                                </h3>
-                                                {getStatusBadge(servico.status)}
-                                                {servico.pago ? (
-                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                                        ✓ Pago
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                                        Pagamento Pendente
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <div className="space-y-1 text-sm text-muted-foreground">
-                                                <p>
-                                                    <strong>Cliente:</strong> {servico.cliente?.nome || "N/A"} -{" "}
-                                                    {servico.cliente?.telefone || "N/A"}
-                                                </p>
-                                                <p>
-                                                    <strong>Data de Início:</strong>{" "}
-                                                    {formatarData(servico.data_inicio)}
-                                                </p>
-                                                <p>
-                                                    <strong>Data de Conclusão:</strong>{" "}
-                                                    {formatarData(servico.data_conclusao)}
-                                                </p>
-                                                {!servico.pago && (
-                                                    <p className="text-orange-600 font-medium">
-                                                        ⚠️ Aguardando pagamento após conclusão
-                                                    </p>
-                                                )}
-                                                {servico.observacoes && (
+                                    <Card key={servico.id} className="p-4 space-y-4">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1 space-y-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="text-lg font-semibold">
+                                                        {servico.servico?.nome || "Serviço"}
+                                                    </h3>
+                                                    {getStatusBadge(servico.status)}
+                                                    {servico.pago ? (
+                                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                                            ✓ Pago
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                                            Pagamento Pendente
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-1 text-sm text-muted-foreground">
                                                     <p>
-                                                        <strong>Observações:</strong> {servico.observacoes}
+                                                        <strong>Cliente:</strong> {servico.cliente?.nome || "N/A"} -{" "}
+                                                        {servico.cliente?.telefone || "N/A"}
                                                     </p>
-                                                )}
+                                                    <p>
+                                                        <strong>Data de Início:</strong>{" "}
+                                                        {formatarData(servico.data_inicio)}
+                                                    </p>
+                                                    <p>
+                                                        <strong>Data de Conclusão:</strong>{" "}
+                                                        {formatarData(servico.data_conclusao)}
+                                                    </p>
+                                                    {!servico.pago && (
+                                                        <p className="text-orange-600 font-medium">
+                                                            ⚠️ Aguardando pagamento após conclusão
+                                                        </p>
+                                                    )}
+                                                    {servico.observacoes && (
+                                                        <p>
+                                                            <strong>Observações:</strong> {servico.observacoes}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => handleRemoverClick(servico)}
+                                            >
+                                                <X className="h-4 w-4 mr-1" />
+                                                Remover
+                                            </Button>
                                         </div>
+
+                                        {/* Fotos de Comprovação */}
+                                        {servico.fotos_comprovacao && servico.fotos_comprovacao.length > 0 && (
+                                            <div className="border-t pt-4 space-y-2">
+                                                <p className="text-sm font-semibold">Fotos de Conclusão:</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {servico.fotos_comprovacao.map((foto) => (
+                                                        <div key={foto.id} className="space-y-1">
+                                                            <img
+                                                                src={foto.url}
+                                                                alt={foto.nome_arquivo}
+                                                                className="h-20 w-20 rounded border cursor-pointer hover:opacity-80 object-cover"
+                                                                onClick={() => {
+                                                                    setFotoSelecionada(foto)
+                                                                    setModalFoto(true)
+                                                                }}
+                                                                onError={(e) => {
+                                                                    if (!e.currentTarget.src.includes('?t=')) {
+                                                                        e.currentTarget.src = foto.url + '?t=' + Date.now()
+                                                                    } else {
+                                                                        e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e6ffe6' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' font-size='10' fill='%23009900' text-anchor='middle' dy='.3em'%3E✓%3C/text%3E%3C/svg%3E"
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={() => downloadArquivo(foto)}
+                                                                className="text-xs text-blue-600 hover:underline block text-center w-full"
+                                                                title="Baixar imagem"
+                                                            >
+                                                                Baixar
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </Card>
                                 ))
                             )}
@@ -485,30 +849,123 @@ export default function ServicosPage() {
                         </DialogHeader>
 
                         <div className="space-y-6">
-                            {/* Pergunta Principal */}
-                            <div className="space-y-2">
-                                <Label className="text-base font-semibold">
-                                    O serviço ocorreu perfeitamente?
-                                </Label>
-                                <div className="flex gap-4">
+                            {/* Pergunta Principal - Só aparece se ainda não teve problemas salvos */}
+                            {!servicoSelecionado?.problemas_salvos && (
+                                <div className="space-y-2">
+                                    <Label className="text-base font-semibold">
+                                        O serviço ocorreu perfeitamente?
+                                    </Label>
+                                    <div className="flex gap-4">
+                                        <Button
+                                            variant={ocorreuPerfeitamente === true ? "default" : "outline"}
+                                            onClick={() => setOcorreuPerfeitamente(true)}
+                                            className="flex-1"
+                                        >
+                                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                                            Sim
+                                        </Button>
+                                        <Button
+                                            variant={ocorreuPerfeitamente === false ? "default" : "outline"}
+                                            onClick={() => setOcorreuPerfeitamente(false)}
+                                            className="flex-1"
+                                        >
+                                            <XCircle className="mr-2 h-4 w-4" />
+                                            Não
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Alerta quando já teve problemas salvos */}
+                            {servicoSelecionado?.problemas_salvos && (
+                                <Card className="border-orange-200 bg-orange-50 p-4">
+                                    <p className="text-sm text-orange-800">
+                                        <AlertCircle className="inline mr-2 h-4 w-4" />
+                                        Este serviço já teve problemas registrados anteriormente.
+                                        Finalize marcando o pagamento e o funcionário responsável.
+                                    </p>
+                                </Card>
+                            )}
+
+                            {/* Exibir Problemas Salvos */}
+                            {problemasSalvos.length > 0 && (
+                                <div className="space-y-3">
+                                    <Label className="text-base font-semibold">Problemas Registrados</Label>
+                                    {problemasSalvos.map((problema) => (
+                                        <Card key={problema.id} className="border-orange-200 bg-orange-50 p-4 space-y-3">
+                                            <div className="space-y-2">
+                                                <p className="text-sm"><strong>Motivo:</strong> {problema.motivo?.nome || problema.motivo_id}</p>
+                                                <p className="text-sm"><strong>Culpado:</strong> {problema.culpado}</p>
+                                                <p className="text-sm"><strong>Descrição:</strong> {problema.descricao}</p>
+                                                {problema.custo_extra > 0 && (
+                                                    <p className="text-sm"><strong>Custo Extra:</strong> R$ {problema.custo_extra.toFixed(2)}</p>
+                                                )}
+                                            </div>
+
+                                            {/* Exibir fotos do problema */}
+                                            {problema.arquivos && problema.arquivos.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <p className="text-sm font-medium">Fotos:</p>
+                                                    {console.log(`Arquivos para ${problema.id}:`, problema.arquivos)}
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {problema.arquivos.map((arquivo) => (
+                                                            <div key={arquivo.id} className="space-y-1">
+                                                                <div className="text-xs text-gray-500 mb-1">
+                                                                    {/* Debug: mostrar URL */}
+                                                                    {/* {arquivo.url} */}
+                                                                </div>
+                                                                <img
+                                                                    src={arquivo.url}
+                                                                    alt={arquivo.nome_arquivo}
+                                                                    className="h-20 w-20 rounded border cursor-pointer hover:opacity-80 object-cover"
+                                                                    onClick={() => {
+                                                                        setFotoSelecionada(arquivo)
+                                                                        setModalFoto(true)
+                                                                    }}
+                                                                    onError={(e) => {
+                                                                        console.error("Erro ao carregar imagem:", {
+                                                                            url: arquivo.url,
+                                                                            nome: arquivo.nome_arquivo
+                                                                        })
+                                                                        // Tentar uma versão alternativa da URL
+                                                                        if (!e.currentTarget.src.includes('?t=')) {
+                                                                            e.currentTarget.src = arquivo.url + '?t=' + Date.now()
+                                                                        } else {
+                                                                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23ffcccc' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' font-size='10' fill='%23cc0000' text-anchor='middle' dy='.3em'%3E❌%3C/text%3E%3C/svg%3E"
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => downloadArquivo(arquivo)}
+                                                                    className="text-xs text-blue-600 hover:underline block text-center w-full"
+                                                                    title="Baixar imagem"
+                                                                >
+                                                                    Baixar
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </Card>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Opção para adicionar mais problemas */}
+                            {servicoSelecionado?.problemas_salvos && (
+                                <div className="space-y-2">
                                     <Button
-                                        variant={ocorreuPerfeitamente === true ? "default" : "outline"}
-                                        onClick={() => setOcorreuPerfeitamente(true)}
-                                        className="flex-1"
-                                    >
-                                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                                        Sim
-                                    </Button>
-                                    <Button
-                                        variant={ocorreuPerfeitamente === false ? "default" : "outline"}
+                                        size="sm"
+                                        variant="outline"
                                         onClick={() => setOcorreuPerfeitamente(false)}
-                                        className="flex-1"
+                                        className="w-full"
                                     >
-                                        <XCircle className="mr-2 h-4 w-4" />
-                                        Não
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Adicionar Mais Problemas
                                     </Button>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Upload de Comprovação (se Sim) */}
                             {ocorreuPerfeitamente === true && (
@@ -553,6 +1010,47 @@ export default function ServicosPage() {
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Exibir Fotos de Comprovação Já Salvas */}
+                            {fotosComprovacao.length > 0 && (
+                                <div className="space-y-3">
+                                    <Label className="text-base font-semibold">Fotos de Comprovação do Serviço</Label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {fotosComprovacao.map((foto) => (
+                                            <div key={foto.id} className="space-y-1">
+                                                <img
+                                                    src={foto.url}
+                                                    alt={foto.nome_arquivo}
+                                                    className="h-20 w-20 rounded border cursor-pointer hover:opacity-80 object-cover"
+                                                    onClick={() => {
+                                                        setFotoSelecionada(foto)
+                                                        setModalFoto(true)
+                                                    }}
+                                                    onError={(e) => {
+                                                        console.error("Erro ao carregar imagem:", {
+                                                            url: foto.url,
+                                                            nome: foto.nome_arquivo
+                                                        })
+                                                        // Tentar com cache busting
+                                                        if (!e.currentTarget.src.includes('?t=')) {
+                                                            e.currentTarget.src = foto.url + '?t=' + Date.now()
+                                                        } else {
+                                                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23e6ffe6' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' font-size='10' fill='%23009900' text-anchor='middle' dy='.3em'%3E✓%3C/text%3E%3C/svg%3E"
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => downloadArquivo(foto)}
+                                                    className="text-xs text-blue-600 hover:underline block text-center w-full"
+                                                    title="Baixar imagem"
+                                                >
+                                                    Baixar
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
@@ -719,6 +1217,54 @@ export default function ServicosPage() {
                                 </div>
                             )}
 
+                            {/* Status de Pagamento */}
+                            <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                                <Label className="text-base font-semibold">Pagamento do Serviço *</Label>
+                                {servicoSelecionado?.pago ? (
+                                    <p className="text-sm text-green-600 font-medium">
+                                        ✓ Serviço já foi pago antecipadamente
+                                    </p>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={servicoPago}
+                                                onChange={(e) => setServicoPago(e.target.checked)}
+                                                className="h-4 w-4"
+                                                id="servicoPago"
+                                            />
+                                            <Label htmlFor="servicoPago" className="cursor-pointer">
+                                                Marcar como pago
+                                            </Label>
+                                        </div>
+                                        {servicoPago && (
+                                            <div className="space-y-2 mt-3">
+                                                <Label>Forma de Pagamento</Label>
+                                                <Select value={formaPagamento} onValueChange={(value: any) => setFormaPagamento(value)}>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                                                        <SelectItem value="pix">PIX</SelectItem>
+                                                        <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                                                        <SelectItem value="cartao_debito">Cartão de Débito</SelectItem>
+                                                        <SelectItem value="aprazo">A Prazo</SelectItem>
+                                                        <SelectItem value="outros">Outros</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+                                        {!servicoPago && (
+                                            <p className="text-sm text-orange-600">
+                                                ⚠️ O serviço precisa ser marcado como pago para ser finalizado
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
                             {/* Funcionário Responsável pelo Registro */}
                             <div className="space-y-2">
                                 <Label>Funcionário Responsável pelo Registro *</Label>
@@ -758,12 +1304,110 @@ export default function ServicosPage() {
                             </div>
                         </div>
 
-                        <DialogFooter>
+                        <DialogFooter className="flex-col sm:flex-row gap-2">
                             <Button variant="outline" onClick={() => setModalAberto(false)}>
                                 Cancelar
                             </Button>
+                            {/* Botão para salvar problemas sem finalizar - só aparece se tiver problemas novos e ainda não finalizou */}
+                            {ocorreuPerfeitamente === false && problemas.length > 0 && !servicoSelecionado?.problemas_salvos && (
+                                <Button
+                                    variant="secondary"
+                                    onClick={handleSalvarProblemas}
+                                    disabled={salvando}
+                                >
+                                    {salvando ? "Salvando..." : "Salvar Problemas (Finalizar Depois)"}
+                                </Button>
+                            )}
+                            {/* Botão para salvar mais problemas após já ter alguns salvos */}
+                            {ocorreuPerfeitamente === false && problemas.length > 0 && servicoSelecionado?.problemas_salvos && (
+                                <Button
+                                    variant="secondary"
+                                    onClick={handleSalvarProblemas}
+                                    disabled={salvando}
+                                >
+                                    {salvando ? "Salvando..." : "Salvar Mais Problemas"}
+                                </Button>
+                            )}
                             <Button onClick={handleFinalizar} disabled={salvando}>
                                 {salvando ? "Salvando..." : "Finalizar Serviço"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal de Visualização de Foto */}
+                <Dialog open={modalFoto} onOpenChange={setModalFoto}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>Visualizar Foto</DialogTitle>
+                        </DialogHeader>
+                        {fotoSelecionada && (
+                            <div className="space-y-4">
+                                <img
+                                    src={fotoSelecionada.url}
+                                    alt={fotoSelecionada.nome_arquivo}
+                                    className="w-full rounded-lg max-h-96 object-contain"
+                                    onError={(e) => {
+                                        console.error("Erro ao carregar imagem no modal:", fotoSelecionada.url)
+                                        // Tentar com cache busting
+                                        if (!e.currentTarget.src.includes('?t=')) {
+                                            e.currentTarget.src = fotoSelecionada.url + '?t=' + Date.now()
+                                        } else {
+                                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23ffe0e0' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' font-size='20' fill='%23cc0000' text-anchor='middle' dy='.3em'%3E❌ Erro ao carregar imagem%3C/text%3E%3C/svg%3E"
+                                        }
+                                    }}
+                                />
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setModalFoto(false)}
+                                        className="flex-1"
+                                    >
+                                        Fechar
+                                    </Button>
+                                    <Button
+                                        onClick={() => downloadArquivo(fotoSelecionada)}
+                                        className="flex-1"
+                                    >
+                                        Baixar Foto
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal de Remoção */}
+                <Dialog open={modalRemover} onOpenChange={setModalRemover}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Remover Serviço</DialogTitle>
+                            <DialogDescription>
+                                Tem certeza que deseja remover este serviço? Esta ação não pode ser desfeita.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label>Motivo da Remoção *</Label>
+                                <Textarea
+                                    value={motivoRemocao}
+                                    onChange={(e) => setMotivoRemocao(e.target.value)}
+                                    placeholder="Ex: Serviço executado incorretamente, duplicidade, erro de registro..."
+                                    rows={4}
+                                />
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                                O serviço será movido para uma tabela de serviços removidos e poderá ser consultado posteriormente para auditoria.
+                            </p>
+                        </div>
+
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setModalRemover(false)}>
+                                Cancelar
+                            </Button>
+                            <Button variant="destructive" onClick={handleRemover} disabled={salvando}>
+                                {salvando ? "Removendo..." : "Confirmar Remoção"}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

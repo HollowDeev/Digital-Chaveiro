@@ -666,45 +666,65 @@ export function useServicosRealizados(lojaId?: string, status?: string) {
       return
     }
 
-    const supabase = createClient()
-    try {
-      let query = supabase
-        .from("servicos_realizados")
-        .select(`
-          *,
-          servico:servicos(nome, preco),
-          cliente:clientes(nome, telefone),
-          funcionario:lojas_usuarios(
-            usuario_id,
-            cargo
-          ),
-          venda:vendas(total)
-        `)
-        .eq("loja_id", lojaId)
-        .order("created_at", { ascending: false })
+    return (async () => {
+      setLoading(true)
+      const supabase = createClient()
+      try {
+        let query = supabase
+          .from("servicos_realizados")
+          .select(`
+            *,
+            servico:servicos(nome, preco),
+            cliente:clientes(nome, telefone),
+            venda:vendas(total)
+          `)
+          .eq("loja_id", lojaId)
+          .order("created_at", { ascending: false })
 
-      if (status) {
-        query = query.eq("status", status)
+        if (status) {
+          query = query.eq("status", status)
+        }
+
+        const { data, error: err } = await query
+
+        if (err) throw err
+        
+        // Enriquecer com fotos de comprovação para cada serviço
+        const servicosComFotos = await Promise.all(
+          (data || []).map(async (servico) => {
+            const { data: fotos } = await supabase
+              .from("servicos_arquivos")
+              .select("id, url, nome_arquivo")
+              .eq("servico_realizado_id", servico.id)
+              .eq("tipo", "comprovacao")
+            
+            return {
+              ...servico,
+              fotos_comprovacao: fotos || []
+            }
+          })
+        )
+        
+        setServicosRealizados(servicosComFotos)
+      } catch (err) {
+        setError(
+          err instanceof Error ? err : new Error("Erro ao buscar serviços realizados")
+        )
+      } finally {
+        setLoading(false)
       }
+    })()
+  }
 
-      const { data, error: err } = await query
-
-      if (err) throw err
-      setServicosRealizados(data || [])
-    } catch (err) {
-      setError(
-        err instanceof Error ? err : new Error("Erro ao buscar serviços realizados")
-      )
-    } finally {
-      setLoading(false)
-    }
+  const removeServicoLocal = (id: string) => {
+    setServicosRealizados((prev) => prev.filter((servico) => servico.id !== id))
   }
 
   useEffect(() => {
     fetchServicosRealizados()
   }, [lojaId, status])
 
-  return { servicosRealizados, loading, error, refetch: fetchServicosRealizados }
+  return { servicosRealizados, loading, error, refetch: fetchServicosRealizados, removeServicoLocal }
 }
 
 /**
