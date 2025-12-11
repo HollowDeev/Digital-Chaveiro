@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto } from "@/lib/hooks/useLojaData"
 import { useCaixaCache } from "@/lib/hooks/useCaixaCache"
+import { useCaixaVerification } from "@/lib/hooks/useCaixaVerification"
 import { useStore } from "@/lib/store"
 import { ShoppingCart, Wrench, Plus, Trash2, DollarSign, Search, Minus, X, Check, CreditCard, Banknote, Smartphone, Percent, Package, Zap, TrendingUp, Users, Calendar } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -33,6 +34,9 @@ export default function PDVPage() {
   
   // Cache do caixa
   const { caixaAberto: caixaAbertoCached, isHydrated, salvarCache, limparCache } = useCaixaCache()
+  
+  // Verificação silenciosa do caixa
+  const { caixa: caixaVerificado, isVerifying: isVerifyingCaixa, verificacaoCompleta } = useCaixaVerification(lojaId)
 
   const {
     vendaAtual,
@@ -782,16 +786,27 @@ export default function PDVPage() {
     }
   }, [caixaAbertoDB, salvarCache])
 
-  // Modal para abrir caixa se estiver fechado - usar cache em vez de fazer requisição
-  if (!isHydrated) {
+  // Sincronizar resultado da verificação silenciosa com cache
+  useEffect(() => {
+    if (!isVerifyingCaixa && caixaVerificado) {
+      // Caixa está aberto segundo verificação
+      salvarCache(true, caixaVerificado.id)
+    }
+  }, [caixaVerificado, isVerifyingCaixa, salvarCache])
+
+  // Modal para abrir caixa se estiver fechado
+  // Mostrar loading enquanto verifica
+  if (!isHydrated || isVerifyingCaixa) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Carregando...</p>
+        <p className="text-muted-foreground">Verificando caixa...</p>
       </div>
     )
   }
 
-  if (!caixaAbertoCached && !caixaAbertoDB) {
+  // Após verificação completa, mostrar modal se caixa está fechado
+  if (verificacaoCompleta && !caixaVerificado) {
+    // Caixa está fechado - mostrar modal de abertura
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Card className="w-full max-w-md">

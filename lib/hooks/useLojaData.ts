@@ -205,27 +205,28 @@ export function useFuncionarios(lojaId?: string) {
     const fetchFuncionarios = async () => {
       const supabase = createClient()
       try {
-        // Buscar todos os usuários vinculados à loja com seus dados completos
+        // Buscar todos os usuários vinculados à loja
+        // lojas_usuarios só tem: id, loja_id, usuario_id, nivel_acesso, created_at
         const { data, error: err } = await supabase
           .from("lojas_usuarios")
           .select("*")
           .eq("loja_id", lojaId)
-          .eq("ativo", true)
           .order("created_at", { ascending: false })
 
         if (err) throw err
 
         // Mapear para estrutura de funcionário
+        // Os dados de nome, email, telefone, etc viriam de auth.users, não estão em lojas_usuarios
         const funcionariosMapeados = (data || []).map((fu: any) => ({
           id: fu.usuario_id,
-          nome: fu.nome || `Usuário ${fu.usuario_id.substring(0, 8)}`,
-          email: fu.email || "",
-          telefone: fu.telefone || "",
-          cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
+          nome: `Usuário ${fu.usuario_id.substring(0, 8)}`, // Será atualizado se conseguir dados de auth.users
+          email: "",
+          telefone: "",
+          cargo: fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário",
           nivel_acesso: fu.nivel_acesso,
-          salario: fu.salario || 0,
-          dataAdmissao: fu.data_admissao || fu.created_at,
-          ativo: fu.ativo !== false,
+          salario: 0,
+          dataAdmissao: fu.created_at,
+          ativo: true,
         }))
 
         setFuncionarios(funcionariosMapeados)
@@ -434,42 +435,24 @@ export function useCaixaAberto(lojaId?: string) {
 
       if (movError) throw movError
 
-      // Buscar nome do funcionário de abertura
-      const { data: funcionarioData } = await supabase
-        .from("lojas_usuarios")
-        .select("nome")
-        .eq("usuario_id", caixaData.funcionario_abertura_id)
-        .eq("loja_id", lojaId)
-        .single()
-
-      // Mapear movimentações com nome do funcionário
-      const movimentacoesComNome = await Promise.all(
-        (movimentacoesData || []).map(async (mov: any) => {
-          const { data: funcMov } = await supabase
-            .from("lojas_usuarios")
-            .select("nome")
-            .eq("usuario_id", mov.funcionario_id)
-            .eq("loja_id", lojaId)
-            .single()
-
-          return {
-            id: mov.id,
-            tipo: mov.tipo as "entrada" | "saida",
-            categoria: mov.categoria,
-            descricao: mov.descricao,
-            valor: mov.valor,
-            funcionarioNome: funcMov?.nome || "Desconhecido",
-            data: mov.data,
-          }
-        })
-      )
+      // Mapear movimentações com ID do funcionário (nome não disponível em lojas_usuarios)
+      const movimentacoesComNome = (movimentacoesData || []).map((mov: any) => ({
+        id: mov.id,
+        tipo: mov.tipo as "entrada" | "saida",
+        categoria: mov.categoria,
+        descricao: mov.descricao,
+        valor: mov.valor,
+        funcionarioNome: `Funcionário ${mov.funcionario_id.substring(0, 8)}`,
+        funcionarioId: mov.funcionario_id,
+        data: mov.data,
+      }))
 
       setCaixaAtual({
         id: caixaData.id,
         status: caixaData.status,
         valorAbertura: caixaData.valor_abertura,
         dataAbertura: caixaData.data_abertura,
-        funcionarioAberturaNome: funcionarioData?.nome || "Desconhecido",
+        funcionarioAberturaNome: `Funcionário ${caixaData.funcionario_abertura_id.substring(0, 8)}`,
         funcionarioAberturaId: caixaData.funcionario_abertura_id,
         movimentacoes: movimentacoesComNome,
       })
