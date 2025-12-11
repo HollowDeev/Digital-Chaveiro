@@ -86,7 +86,15 @@ export function useServicos(lojaId?: string) {
     try {
       const { data, error: err } = await supabase
         .from("servicos")
-        .select("*")
+        .select(`
+          *,
+          servicos_custos (
+            id,
+            nome,
+            valor,
+            descricao
+          )
+        `)
         .eq("loja_id", lojaId)
         .order("nome")
 
@@ -105,6 +113,7 @@ export function useServicos(lojaId?: string) {
           descricao: s.descricao || "",
           duracao: s.duracao_estimada || 0,
           ativo: s.ativo !== false,
+          custos: s.servicos_custos || [],
         }))
       )
     } catch (err) {

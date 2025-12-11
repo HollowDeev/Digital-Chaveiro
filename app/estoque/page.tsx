@@ -34,6 +34,8 @@ export default function GestaoInventarioPage() {
   const [dialogNovaPerda, setDialogNovaPerda] = useState(false)
   const [dialogEditarProduto, setDialogEditarProduto] = useState(false)
   const [dialogEditarServico, setDialogEditarServico] = useState(false)
+  const [dialogCustosServico, setDialogCustosServico] = useState(false)
+  const [servicoSelecionadoParaCustos, setServicoSelecionadoParaCustos] = useState<any>(null)
 
   // Estados de Formulários
   const [novoProduto, setNovoProduto] = useState({
@@ -51,8 +53,14 @@ export default function GestaoInventarioPage() {
     codigo: "",
     categoria: "",
     preco: "",
+    custo_unitario: "",
     duracao: "",
     descricao: ""
+  })
+
+  const [novoCusto, setNovoCusto] = useState({
+    nome: "",
+    valor: ""
   })
 
   const [entradaEstoque, setEntradaEstoque] = useState({
@@ -111,6 +119,13 @@ export default function GestaoInventarioPage() {
     }
     fetchLoja()
   }, [])
+
+  // Refetch dos custos quando o dialog de custos é aberto
+  useEffect(() => {
+    if (dialogCustosServico && servicoSelecionadoParaCustos) {
+      refetchServicos()
+    }
+  }, [dialogCustosServico])
 
   // Toast
   const mostrarToast = (mensagem: string) => {
@@ -215,6 +230,7 @@ export default function GestaoInventarioPage() {
       loja_id: lojaId,
       nome: novoServico.nome,
       preco: Number.parseFloat(novoServico.preco) || 0,
+      custo_unitario: Number.parseFloat(novoServico.custo_unitario) || 0,
       duracao_estimada: Number.parseInt(novoServico.duracao) || null,
       descricao: novoServico.descricao,
       ativo: true
@@ -226,7 +242,44 @@ export default function GestaoInventarioPage() {
     } else {
       mostrarToast("✅ Serviço criado com sucesso!")
       setDialogNovoServico(false)
-      setNovoServico({ nome: "", codigo: "", categoria: "", preco: "", duracao: "", descricao: "" })
+      setNovoServico({ nome: "", codigo: "", categoria: "", preco: "", custo_unitario: "", duracao: "", descricao: "" })
+      refetchServicos()
+    }
+  }
+
+  // Gerenciar custos de serviço
+  const handleAdicionarCusto = async () => {
+    if (!servicoSelecionadoParaCustos || !novoCusto.nome || !novoCusto.valor) {
+      mostrarToast("⚠️ Preencha nome e valor do custo")
+      return
+    }
+
+    const supabase = createClient()
+    const { error } = await supabase.from("servicos_custos").insert({
+      servico_id: servicoSelecionadoParaCustos.id,
+      nome: novoCusto.nome,
+      valor: Number.parseFloat(novoCusto.valor) || 0
+    })
+
+    if (error) {
+      mostrarToast("❌ Erro ao adicionar custo")
+      console.error(error)
+    } else {
+      mostrarToast("✅ Custo adicionado com sucesso!")
+      setNovoCusto({ nome: "", valor: "" })
+      refetchServicos()
+    }
+  }
+
+  const handleDeletarCusto = async (custoId: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from("servicos_custos").delete().eq("id", custoId)
+
+    if (error) {
+      mostrarToast("❌ Erro ao deletar custo")
+      console.error(error)
+    } else {
+      mostrarToast("✅ Custo deletado com sucesso!")
       refetchServicos()
     }
   }
@@ -916,6 +969,17 @@ export default function GestaoInventarioPage() {
                               variant="outline"
                               size="icon"
                               onClick={() => {
+                                setServicoSelecionadoParaCustos(servico)
+                                setDialogCustosServico(true)
+                              }}
+                              title="Gerenciar custos"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
                                 setServicoEditando(servico)
                                 setDialogEditarServico(true)
                               }}
@@ -1354,6 +1418,20 @@ export default function GestaoInventarioPage() {
                   rows={3}
                 />
               </div>
+
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  if (servicoEditando) {
+                    setServicoSelecionadoParaCustos(servicoEditando)
+                    setDialogEditarServico(false)
+                    setDialogCustosServico(true)
+                  }
+                }}
+                className="w-full"
+              >
+                Gerenciar Custos
+              </Button>
             </div>
           )}
           <DialogFooter>
@@ -1362,6 +1440,97 @@ export default function GestaoInventarioPage() {
             </Button>
             <Button onClick={handleAtualizarServico}>
               Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Gerenciar Custos de Serviço */}
+      <Dialog open={dialogCustosServico} onOpenChange={setDialogCustosServico}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gerenciar Custos - {servicoSelecionadoParaCustos?.nome}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            {/* Lista de custos existentes */}
+            {servicoSelecionadoParaCustos?.custos && servicoSelecionadoParaCustos.custos.length > 0 && (
+              <div className="space-y-2">
+                <Label className="font-semibold">Custos Cadastrados</Label>
+                <div className="space-y-2">
+                  {servicoSelecionadoParaCustos.custos.map((custo: any) => (
+                    <div
+                      key={custo.id}
+                      className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{custo.nome}</p>
+                        <p className="text-xs text-muted-foreground">
+                          R$ {Number.parseFloat(custo.valor).toFixed(2)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeletarCusto(custo.id)}
+                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Adicionar novo custo */}
+            <div className="border-t pt-4">
+              <Label className="font-semibold mb-3 block">Adicionar Novo Custo</Label>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="custo-nome">Nome do Custo *</Label>
+                  <Input
+                    id="custo-nome"
+                    placeholder="Ex: Transporte, Material, Equipamento"
+                    value={novoCusto.nome}
+                    onChange={(e) => setNovoCusto({ ...novoCusto, nome: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="custo-valor">Valor (R$) *</Label>
+                  <Input
+                    id="custo-valor"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={novoCusto.valor}
+                    onChange={(e) => setNovoCusto({ ...novoCusto, valor: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogCustosServico(false)
+                setNovoCusto({ nome: "", valor: "" })
+                if (dialogEditarServico) {
+                  setDialogEditarServico(true)
+                }
+              }}
+            >
+              {dialogEditarServico ? "Voltar" : "Fechar"}
+            </Button>
+            <Button
+              onClick={handleAdicionarCusto}
+              disabled={!novoCusto.nome || !novoCusto.valor}
+            >
+              Adicionar Custo
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,6 +22,12 @@ export type Servico = {
   categoria: string
   descricao?: string
   ativo: boolean
+  custos?: Array<{
+    id: string
+    nome: string
+    valor: number
+    descricao?: string
+  }>
 }
 
 export type Cliente = {
