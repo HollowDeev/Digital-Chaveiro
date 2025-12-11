@@ -339,9 +339,15 @@ export default function GestaoInventarioPage() {
   const calcularSomaCustosServico = (servicoId: string): number => {
     const servico = servicos.find(s => s.id === servicoId)
     if (!servico || !servico.custos || servico.custos.length === 0) {
+      console.log(`Serviço ${servicoId} não tem custos`)
       return 0
     }
-    return servico.custos.reduce((acc, custo) => acc + Number(custo.valor), 0)
+    const soma = servico.custos.reduce((acc, custo) => {
+      const valor = typeof custo.valor === 'string' ? parseFloat(custo.valor) : Number(custo.valor)
+      return acc + valor
+    }, 0)
+    console.log(`Soma de custos para ${servicoId}: R$ ${soma.toFixed(2)}`)
+    return soma
   }
 
   const handleAtualizarServico = async () => {
@@ -1189,23 +1195,24 @@ export default function GestaoInventarioPage() {
                         <div className="space-y-2">
                           <Label>{novaPerda.tipo === 'produto' ? 'Produto' : 'Serviço'} *</Label>
                           <Select value={novaPerda.produtoId} onValueChange={(v) => {
-                            setNovaPerda({ ...novaPerda, produtoId: v })
                             // Auto-preencher valor baseado no custo do item selecionado
+                            let novoValor = ""
                             if (novaPerda.tipo === 'produto') {
                               const prod = produtos.find(p => p.id === v)
-                              if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                              novoValor = prod ? prod.custoUnitario.toString() : ""
                             } else {
                               const serv = servicos.find(s => s.id === v)
                               if (serv) {
-                                // Se for serviço e perdaTipoValor for 'custo', usar soma dos custos
+                                // Se perdaTipoValor for 'custo', usar soma dos custos; senão usar preço
                                 if (perdaTipoValor === 'custo') {
                                   const somaCustos = calcularSomaCustosServico(v)
-                                  setNovaPerda(prev => ({ ...prev, valor: somaCustos.toString() }))
+                                  novoValor = somaCustos.toString()
                                 } else {
-                                  setNovaPerda(prev => ({ ...prev, valor: serv.preco.toString() }))
+                                  novoValor = serv.preco.toString()
                                 }
                               }
                             }
+                            setNovaPerda({ ...novaPerda, produtoId: v, valor: novoValor })
                           }}>
                             <SelectTrigger>
                               <SelectValue placeholder={`Selecione o ${novaPerda.tipo}`} />
@@ -1244,10 +1251,13 @@ export default function GestaoInventarioPage() {
                                 if (novaPerda.produtoId) {
                                   if (novaPerda.tipo === 'produto') {
                                     const prod = produtos.find(p => p.id === novaPerda.produtoId)
-                                    if (prod) setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                                    if (prod) {
+                                      setNovaPerda(prev => ({ ...prev, valor: prod.custoUnitario.toString() }))
+                                    }
                                   } else {
                                     // Para serviços, usar a soma dos custos
                                     const somaCustos = calcularSomaCustosServico(novaPerda.produtoId)
+                                    console.log(`Atualizando perda com soma de custos: R$ ${somaCustos.toFixed(2)}`)
                                     setNovaPerda(prev => ({ ...prev, valor: somaCustos.toString() }))
                                   }
                                 }
