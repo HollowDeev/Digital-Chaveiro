@@ -794,65 +794,8 @@ export default function PDVPage() {
     }
   }, [caixaVerificado, isVerifyingCaixa, salvarCache])
 
-  // Modal para abrir caixa se estiver fechado
-  // Mostrar loading enquanto verifica
-  if (!isHydrated || isVerifyingCaixa) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Verificando caixa...</p>
-      </div>
-    )
-  }
-
-  // Após verificação completa, mostrar modal se caixa está fechado
-  if (verificacaoCompleta && !caixaVerificado) {
-    // Caixa está fechado - mostrar modal de abertura
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Caixa Fechado</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-center text-muted-foreground">
-              Abra o caixa para começar a registrar vendas
-            </p>
-            <div className="space-y-3">
-              <div>
-                <Label>Funcionário Responsável *</Label>
-                <Select value={funcionarioIdCaixa} onValueChange={setFuncionarioIdCaixa}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o funcionário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {funcionarios.filter(f => f.ativo).map((func) => (
-                      <SelectItem key={func.id} value={func.id}>
-                        {func.nome} - {func.cargo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Valor de Abertura (R$)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={valorAberturaCaixa}
-                  onChange={(e) => setValorAberturaCaixa(Number.parseFloat(e.target.value) || 0)}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-            <Button onClick={handleAbrirCaixa} className="w-full" size="lg">
-              Abrir Caixa
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  // Determinar se o caixa está fechado após verificação
+  const caixaFechado = verificacaoCompleta && !caixaVerificado
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
@@ -894,6 +837,57 @@ export default function PDVPage() {
         "flex-1 transition-all duration-300",
         sidebarVisible ? "ml-64" : "ml-16"
       )}>
+        {/* Loading enquanto verifica o caixa */}
+        {(!isHydrated || isVerifyingCaixa) ? (
+          <div className="flex h-screen items-center justify-center">
+            <p className="text-muted-foreground">Verificando caixa...</p>
+          </div>
+        ) : caixaFechado ? (
+          /* Caixa fechado - mostrar formulário de abertura na área principal */
+          <div className="flex h-screen items-center justify-center">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="text-center">Caixa Fechado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-center text-muted-foreground">
+                  Abra o caixa para começar a registrar vendas
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Funcionário Responsável *</Label>
+                    <Select value={funcionarioIdCaixa} onValueChange={setFuncionarioIdCaixa}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o funcionário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {funcionarios.filter(f => f.ativo).map((func) => (
+                          <SelectItem key={func.id} value={func.id}>
+                            {func.nome} - {func.cargo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Valor de Abertura (R$)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={valorAberturaCaixa}
+                      onChange={(e) => setValorAberturaCaixa(Number.parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleAbrirCaixa} className="w-full" size="lg">
+                  Abrir Caixa
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
         <div className="grid h-screen grid-rows-[auto_1fr] gap-0">
           {/* Header com Status e Busca */}
           <div className="border-b border-border bg-card/50 backdrop-blur-sm">
@@ -1281,6 +1275,7 @@ export default function PDVPage() {
             </div>
           </div>
         </div>
+        )}
       </main>
 
       {/* Dialog de Pagamento */}
