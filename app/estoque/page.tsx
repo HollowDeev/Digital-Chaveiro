@@ -13,8 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
-import { useProdutos, useServicos } from "@/lib/hooks/useLojaData"
-import { useStore } from "@/lib/store"
+import { useProdutos, useServicos, useFuncionarios, usePerdas, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
 import { Package, Search, AlertTriangle, Plus, Edit, Trash2, TrendingUp, TrendingDown, Wrench, Clock, DollarSign, Percent, ArrowUpCircle, History, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +21,9 @@ export default function GestaoInventarioPage() {
   const [lojaId, setLojaId] = useState<string | undefined>()
   const { produtos, refetch: refetchProdutos } = useProdutos(lojaId)
   const { servicos, refetch: refetchServicos } = useServicos(lojaId)
-  const { categoriasPerdas, perdas, adicionarPerda, adicionarCategoriaPerda, funcionarios } = useStore()
+  const { funcionarios } = useFuncionarios(lojaId)
+  const { perdas, refetch: refetchPerdas } = usePerdas(lojaId)
+  const { categorias: categoriasPerdas, refetch: refetchCategoriasPerdas } = useCategoriasPerdas(lojaId)
 
   const [busca, setBusca] = useState("")
   const [activeTab, setActiveTab] = useState("produtos")
@@ -410,7 +411,7 @@ export default function GestaoInventarioPage() {
   }
 
   // Registrar Perda
-  const handleRegistrarPerda = () => {
+  const handleRegistrarPerda = async () => {
     if (!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.funcionarioId || !novaPerda.categoriaId || !novaPerda.valor) {
       mostrarToast("⚠️ Preencha todos os campos")
       return
@@ -427,39 +428,59 @@ export default function GestaoInventarioPage() {
     const funcionario = funcionarios.find(f => f.id === novaPerda.funcionarioId)
     const categoria = categoriasPerdas.find(c => c.id === novaPerda.categoriaId)
 
-    if (!funcionario || !categoria) return
-
-    let itemNome = ""
-    if (novaPerda.tipo === 'produto') {
-      const produto = produtos.find(p => p.id === novaPerda.produtoId)
-      if (!produto) return
-      itemNome = produto.nome
-    } else {
-      const servico = servicos.find(s => s.id === novaPerda.produtoId)
-      if (!servico) return
-      itemNome = servico.nome
+    if (!funcionario || !categoria) {
+      mostrarToast("⚠️ Funcionário ou categoria inválidos")
+      return
     }
 
-    const perda = {
-      id: `P${Date.now()}`,
-      produtoId: novaPerda.produtoId,
-      produtoNome: itemNome,
-      quantidade,
-      custoUnitario: valor / quantidade,
-      custoTotal: valor,
-      funcionarioId: funcionario.id,
-      funcionarioNome: funcionario.nome,
-      categoriaId: categoria.id,
-      categoria: categoria.nome,
-      motivo: categoria.nome,
-      data: new Date().toISOString(),
-      observacoes: novaPerda.observacoes
+    if (!lojaId) {
+      mostrarToast("⚠️ Loja não identificada")
+      return
     }
 
-    adicionarPerda(perda)
-    mostrarToast("✅ Perda registrada!")
-    setDialogNovaPerda(false)
-    setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+    try {
+      const supabase = createClient()
+
+      // Inserir perda no banco de dados
+      const { error: perdaError } = await supabase.from("perdas").insert({
+        loja_id: lojaId,
+        produto_id: novaPerda.produtoId,
+        categoria_id: novaPerda.categoriaId,
+        quantidade: quantidade,
+        custo_unitario: valor / quantidade,
+        custo_total: valor,
+        motivo: categoria.nome,
+        funcionario_id: novaPerda.funcionarioId,
+        observacoes: novaPerda.observacoes || null,
+      })
+
+      if (perdaError) throw perdaError
+
+      // Atualizar estoque do produto (reduzir)
+      if (novaPerda.tipo === 'produto') {
+        const produto = produtos.find(p => p.id === novaPerda.produtoId)
+        if (produto) {
+          const novoEstoque = Math.max(0, produto.estoque - quantidade)
+          const { error: estoqueError } = await supabase
+            .from("produtos")
+            .update({ estoque: novoEstoque })
+            .eq("id", novaPerda.produtoId)
+
+          if (estoqueError) {
+            console.error("Erro ao atualizar estoque:", estoqueError)
+          }
+        }
+      }
+
+      mostrarToast("✅ Perda registrada!")
+      setDialogNovaPerda(false)
+      setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+      refetchPerdas()
+      refetchProdutos()
+    } catch (error: any) {
+      console.error("Erro ao registrar perda:", error)
+      mostrarToast("❌ Erro ao registrar perda: " + (error.message || "Erro desconhecido"))
+    }
   }
 
   // Filtros
@@ -483,7 +504,7 @@ export default function GestaoInventarioPage() {
   const valorTotalEstoque = produtos.reduce((acc, p) => acc + p.custoUnitario * p.estoque, 0)
   const totalProdutos = produtos.filter(p => p.ativo).length
   const totalServicos = servicos.filter(s => s.ativo).length
-  const totalPerdas = perdas.reduce((acc, p) => acc + p.custoTotal, 0)
+  const totalPerdas = perdas.reduce((acc, p) => acc + (p.custo_total || 0), 0)
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -1260,8 +1281,8 @@ export default function GestaoInventarioPage() {
                                 }
                               }}
                               className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'custo'
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'text-muted-foreground hover:text-foreground'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:text-foreground'
                                 }`}
                             >
                               Custo
@@ -1280,8 +1301,8 @@ export default function GestaoInventarioPage() {
                                 }
                               }}
                               className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'preco'
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'text-muted-foreground hover:text-foreground'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:text-foreground'
                                 }`}
                             >
                               Valor Final
@@ -1348,12 +1369,9 @@ export default function GestaoInventarioPage() {
                               <SelectValue placeholder="Selecione a categoria" />
                             </SelectTrigger>
                             <SelectContent>
-                              {categoriasPerdas.filter(c => c.ativo).map(cat => (
+                              {categoriasPerdas.map(cat => (
                                 <SelectItem key={cat.id} value={cat.id}>
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.cor }} />
-                                    {cat.nome}
-                                  </div>
+                                  {cat.nome}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1402,18 +1420,18 @@ export default function GestaoInventarioPage() {
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <h3 className="font-medium">{perda.produtoNome}</h3>
+                              <h3 className="font-medium">{perda.produtos?.nome || 'Produto removido'}</h3>
                               <p className="text-sm text-muted-foreground">
-                                {perda.quantidade} unidade(s) • {perda.categoria}
+                                {perda.quantidade} unidade(s) • {perda.categorias_perdas?.nome || perda.motivo}
                               </p>
                             </div>
                             <Badge variant="destructive">
-                              R$ {perda.custoTotal.toFixed(2)}
+                              R$ {(perda.custo_total || 0).toFixed(2)}
                             </Badge>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            <p>Funcionário: {perda.funcionarioNome}</p>
-                            <p>Data: {new Date(perda.data).toLocaleDateString('pt-BR')}</p>
+                            <p>Funcionário: {perda.lojas_usuarios?.nome || 'Não identificado'}</p>
+                            <p>Data: {new Date(perda.data_perda).toLocaleDateString('pt-BR')}</p>
                             {perda.observacoes && <p>Obs: {perda.observacoes}</p>}
                           </div>
                         </div>

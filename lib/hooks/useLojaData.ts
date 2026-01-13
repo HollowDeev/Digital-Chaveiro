@@ -205,8 +205,7 @@ export function useFuncionarios(lojaId?: string) {
     const fetchFuncionarios = async () => {
       const supabase = createClient()
       try {
-        // Buscar todos os usuários vinculados à loja
-        // lojas_usuarios só tem: id, loja_id, usuario_id, nivel_acesso, created_at
+        // Buscar todos os usuários vinculados à loja com campos adicionais
         const { data, error: err } = await supabase
           .from("lojas_usuarios")
           .select("*")
@@ -215,18 +214,18 @@ export function useFuncionarios(lojaId?: string) {
 
         if (err) throw err
 
-        // Mapear para estrutura de funcionário
-        // Os dados de nome, email, telefone, etc viriam de auth.users, não estão em lojas_usuarios
+        // Mapear para estrutura de funcionário usando campos da tabela
         const funcionariosMapeados = (data || []).map((fu: any) => ({
-          id: fu.usuario_id,
-          nome: `Usuário ${fu.usuario_id.substring(0, 8)}`, // Será atualizado se conseguir dados de auth.users
-          email: "",
-          telefone: "",
-          cargo: fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário",
+          id: fu.id, // Usar o ID do registro lojas_usuarios
+          nome: fu.nome || `Usuário ${fu.user_id?.substring(0, 8) || 'desconhecido'}`,
+          email: fu.email || "",
+          telefone: fu.telefone || "",
+          cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
           nivel_acesso: fu.nivel_acesso,
-          salario: 0,
-          dataAdmissao: fu.created_at,
-          ativo: true,
+          salario: fu.salario || 0,
+          dataAdmissao: fu.data_admissao || fu.created_at,
+          ativo: fu.ativo !== false,
+          user_id: fu.user_id,
         }))
 
         setFuncionarios(funcionariosMapeados)
@@ -847,4 +846,130 @@ export function useArquivosServico(servicoRealizadoId?: string) {
   }, [servicoRealizadoId])
 
   return { arquivos, loading, error, refetch: fetchArquivos }
+}
+
+/**
+ * Hook para buscar histórico de um funcionário (vendas e perdas)
+ */
+export function useHistoricoFuncionario(funcionarioId?: string, lojaId?: string) {
+  const [historico, setHistorico] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  // Função auxiliar para obter o número da semana
+  const getWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dayNum = d.getUTCDay() || 7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  }
+
+  const fetchHistorico = async () => {
+    if (!funcionarioId || !lojaId) {
+      setHistorico(null)
+      setLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    try {
+      // Buscar vendas do funcionário
+      const { data: vendasData, error: vendasError } = await supabase
+        .from("vendas")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .eq("funcionario_id", funcionarioId)
+        .eq("status", "concluida")
+        .order("created_at", { ascending: false })
+
+      if (vendasError) throw vendasError
+
+      // Buscar perdas do funcionário
+      const { data: perdasData, error: perdasError } = await supabase
+        .from("perdas")
+        .select(`
+          *,
+          produtos (nome),
+          categorias_perdas (nome)
+        `)
+        .eq("loja_id", lojaId)
+        .eq("funcionario_id", funcionarioId)
+        .order("data_perda", { ascending: false })
+
+      if (perdasError) throw perdasError
+
+      const vendas = vendasData || []
+      const perdas = perdasData || []
+
+      // Calcular totais
+      const totalVendas = vendas.length
+      const totalPerdas = perdas.length
+      const valorTotalVendas = vendas.reduce((acc, v) => acc + (v.total || 0), 0)
+      const custoTotalPerdas = perdas.reduce((acc, p) => acc + (p.custo_total || 0), 0)
+
+      // Agrupar vendas por semana e mês
+      const vendasPorSemana: { [key: string]: any[] } = {}
+      const vendasPorMes: { [key: string]: any[] } = {}
+
+      vendas.forEach((venda) => {
+        const data = new Date(venda.created_at)
+        const semana = `Semana ${getWeekNumber(data)} - ${data.getFullYear()}`
+        const mes = `${data.toLocaleString("pt-BR", { month: "long" })} ${data.getFullYear()}`
+
+        if (!vendasPorSemana[semana]) vendasPorSemana[semana] = []
+        if (!vendasPorMes[mes]) vendasPorMes[mes] = []
+
+        vendasPorSemana[semana].push(venda)
+        vendasPorMes[mes].push(venda)
+      })
+
+      // Agrupar perdas por semana e mês
+      const perdasPorSemana: { [key: string]: any[] } = {}
+      const perdasPorMes: { [key: string]: any[] } = {}
+
+      perdas.forEach((perda) => {
+        const data = new Date(perda.data_perda)
+        const semana = `Semana ${getWeekNumber(data)} - ${data.getFullYear()}`
+        const mes = `${data.toLocaleString("pt-BR", { month: "long" })} ${data.getFullYear()}`
+
+        if (!perdasPorSemana[semana]) perdasPorSemana[semana] = []
+        if (!perdasPorMes[mes]) perdasPorMes[mes] = []
+
+        perdasPorSemana[semana].push({
+          ...perda,
+          custoTotal: perda.custo_total // Mapear para o formato esperado
+        })
+        perdasPorMes[mes].push({
+          ...perda,
+          custoTotal: perda.custo_total
+        })
+      })
+
+      setHistorico({
+        vendas,
+        perdas,
+        totalVendas,
+        totalPerdas,
+        valorTotalVendas,
+        custoTotalPerdas,
+        vendasPorSemana,
+        vendasPorMes,
+        perdasPorSemana,
+        perdasPorMes,
+      })
+    } catch (err) {
+      setError(
+        err instanceof Error ? err : new Error("Erro ao buscar histórico do funcionário")
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchHistorico()
+  }, [funcionarioId, lojaId])
+
+  return { historico, loading, error, refetch: fetchHistorico }
 }

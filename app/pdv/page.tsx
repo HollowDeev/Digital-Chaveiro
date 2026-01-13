@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
-import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto } from "@/lib/hooks/useLojaData"
+import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
 import { useCaixaCache } from "@/lib/hooks/useCaixaCache"
 import { useCaixaVerification } from "@/lib/hooks/useCaixaVerification"
 import { useStore } from "@/lib/store"
@@ -31,6 +31,7 @@ export default function PDVPage() {
   const { clientes } = useClientes(lojaId)
   const { funcionarios } = useFuncionarios(lojaId)
   const { caixaAtual: caixaAbertoDB, refetch: refetchCaixa } = useCaixaAberto(lojaId)
+  const { categorias: categoriasPerdas } = useCategoriasPerdas(lojaId)
 
   // Cache do caixa
   const { caixaAberto: caixaAbertoCached, isHydrated, salvarCache, limparCache } = useCaixaCache()
@@ -53,9 +54,6 @@ export default function PDVPage() {
     adicionarContaReceber,
     abrirCaixa,
     caixaAtual,
-    categoriasPerdas,
-    perdas,
-    adicionarPerda
   } = useStore()
 
   // 2. Estados
@@ -148,7 +146,7 @@ export default function PDVPage() {
     setShowClienteResults(false)
   }
 
-  const handleRegistrarPerda = () => {
+  const handleRegistrarPerda = async () => {
     if (!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.funcionarioId || !novaPerda.categoriaId || !novaPerda.valor) {
       mostrarToast("⚠️ Preencha todos os campos obrigatórios")
       return
@@ -165,39 +163,53 @@ export default function PDVPage() {
     const funcionario = funcionarios.find(f => f.id === novaPerda.funcionarioId)
     const categoria = categoriasPerdas.find(c => c.id === novaPerda.categoriaId)
 
-    if (!funcionario || !categoria) return
-
-    let itemNome = ""
-    if (novaPerda.tipo === 'produto') {
-      const produto = produtos.find(p => p.id === novaPerda.produtoId)
-      if (!produto) return
-      itemNome = produto.nome
-    } else {
-      const servico = servicos.find(s => s.id === novaPerda.produtoId)
-      if (!servico) return
-      itemNome = servico.nome
+    if (!funcionario || !categoria) {
+      mostrarToast("⚠️ Funcionário ou categoria inválidos")
+      return
     }
 
-    const perda = {
-      id: `P${Date.now()}`,
-      produtoId: novaPerda.produtoId,
-      produtoNome: itemNome,
-      quantidade,
-      custoUnitario: valor / quantidade,
-      custoTotal: valor,
-      funcionarioId: funcionario.id,
-      funcionarioNome: funcionario.nome,
-      categoriaId: categoria.id,
-      categoria: categoria.nome,
-      motivo: categoria.nome,
-      data: new Date().toISOString(),
-      observacoes: novaPerda.observacoes
+    if (!lojaId) {
+      mostrarToast("⚠️ Loja não identificada")
+      return
     }
 
-    adicionarPerda(perda)
-    mostrarToast("✅ Perda registrada!")
-    setDialogNovaPerda(false)
-    setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+    try {
+      const supabase = createClient()
+
+      // Inserir perda no banco de dados
+      const { error: perdaError } = await supabase.from("perdas").insert({
+        loja_id: lojaId,
+        produto_id: novaPerda.produtoId,
+        categoria_id: novaPerda.categoriaId,
+        quantidade: quantidade,
+        custo_unitario: valor / quantidade,
+        custo_total: valor,
+        motivo: categoria.nome,
+        funcionario_id: novaPerda.funcionarioId,
+        observacoes: novaPerda.observacoes || null,
+      })
+
+      if (perdaError) throw perdaError
+
+      // Atualizar estoque do produto (reduzir)
+      if (novaPerda.tipo === 'produto') {
+        const produto = produtos.find(p => p.id === novaPerda.produtoId)
+        if (produto) {
+          const novoEstoque = Math.max(0, produto.estoque - quantidade)
+          await supabase
+            .from("produtos")
+            .update({ estoque: novoEstoque })
+            .eq("id", novaPerda.produtoId)
+        }
+      }
+
+      mostrarToast("✅ Perda registrada!")
+      setDialogNovaPerda(false)
+      setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+    } catch (error: any) {
+      console.error("Erro ao registrar perda:", error)
+      mostrarToast("❌ Erro ao registrar perda: " + (error.message || "Erro desconhecido"))
+    }
   }
 
   const adicionarItemRapido = useCallback((produtoId: string, tipo: 'produto' | 'servico') => {
@@ -888,393 +900,393 @@ export default function PDVPage() {
             </Card>
           </div>
         ) : (
-        <div className="grid h-screen grid-rows-[auto_1fr] gap-0">
-          {/* Header com Status e Busca */}
-          <div className="border-b border-border bg-card/50 backdrop-blur-sm">
-            <div className="flex items-center justify-between gap-4 p-4">
-              {/* Busca Rápida */}
-              <div className="relative flex-1 max-w-2xl flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Buscar produto ou serviço (F2)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 h-11 text-base"
-                  />
-                  {showSearchResults && searchResults.length > 0 && (
-                    <Card className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto shadow-xl">
-                      <CardContent className="p-2">
-                        {searchResults.map((item, index) => (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              adicionarItemRapido(item.id, item.tipo)
-                              setSearchQuery("")
-                              setShowSearchResults(false)
-                            }}
-                            className={cn(
-                              "w-full flex items-center justify-between rounded-md p-3 text-left transition-colors",
-                              index === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
-                            )}
-                          >
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{item.nome}</span>
-                                <Badge variant={item.tipo === 'produto' ? 'default' : 'secondary'} className="text-xs">
-                                  {item.tipo === 'produto' ? 'Produto' : 'Serviço'}
-                                </Badge>
-                                {item.estoque !== undefined && item.estoque <= 5 && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Estoque: {item.estoque}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <span className="font-bold text-primary">R$ {item.preco.toFixed(2)}</span>
-                          </button>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-                <Button
-                  onClick={() => setDialogNovaPerda(true)}
-                  variant="outline"
-                  size="lg"
-                  className="h-11 gap-2"
-                  title="Registrar perda de produto"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Perda</span>
-                </Button>
-              </div>
-
-              {/* Status e Ações */}
-              <div className="flex items-center gap-3">
-                <Badge variant="outline" className="gap-2 px-3 py-1.5">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="font-medium">Caixa Aberto</span>
-                </Badge>
-
-                {vendaAtual.itens.length > 0 && (
-                  <Badge className="gap-2 bg-primary px-3 py-1.5">
-                    <ShoppingCart className="h-4 w-4" />
-                    <span className="font-bold">{vendaAtual.itens.length}</span>
-                  </Badge>
-                )}
-
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Vendas Hoje</p>
-                  <p className="text-lg font-bold">R$ {(resumo?.totalReceita || 0).toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Área Principal - Grid Disperso */}
-          <div className="grid grid-cols-12 gap-4 overflow-hidden p-4">
-            {/* Coluna Esquerda - Produtos/Serviços */}
-            <div className="col-span-7 flex flex-col gap-4 overflow-auto">
-              {/* Tabs de Visualização */}
-              <div className="flex gap-2">
-                <Button
-                  variant={viewMode === 'vendidos' ? 'default' : 'outline'}
-                  onClick={() => setViewMode('vendidos')}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  Mais Vendidos
-                </Button>
-                <Button
-                  variant={viewMode === 'produtos' ? 'default' : 'outline'}
-                  onClick={() => setViewMode('produtos')}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Package className="h-4 w-4" />
-                  Todos Produtos
-                </Button>
-                <Button
-                  variant={viewMode === 'servicos' ? 'default' : 'outline'}
-                  onClick={() => setViewMode('servicos')}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Wrench className="h-4 w-4" />
-                  Serviços
-                </Button>
-              </div>
-
-              {/* Grid de Produtos/Serviços */}
-              <div className="grid grid-cols-3 gap-3 auto-rows-min">
-                {viewMode === 'vendidos' && produtosMaisVendidos.map((produto) => (
-                  <button
-                    key={produto.id}
-                    onClick={() => adicionarItemRapido(produto.id, 'produto')}
-                    className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
-                  >
-                    {produto.estoque <= 5 && (
-                      <Badge variant="destructive" className="absolute right-1.5 top-1.5 text-xs px-1.5 py-0">
-                        Est: {produto.estoque}
-                      </Badge>
-                    )}
-                    <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
-                    <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
-                  </button>
-                ))}
-
-                {viewMode === 'produtos' && produtos.filter(p => p.ativo).map((produto) => (
-                  <button
-                    key={produto.id}
-                    onClick={() => adicionarItemRapido(produto.id, 'produto')}
-                    className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
-                  >
-                    {produto.estoque <= 5 && (
-                      <Badge variant="destructive" className="absolute right-1.5 top-1.5 text-xs px-1.5 py-0">
-                        Est: {produto.estoque}
-                      </Badge>
-                    )}
-                    <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
-                    <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
-                  </button>
-                ))}
-
-                {viewMode === 'servicos' && servicos.filter(s => s.ativo).map((servico) => (
-                  <button
-                    key={servico.id}
-                    onClick={() => adicionarItemRapido(servico.id, 'servico')}
-                    className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
-                  >
-                    <p className="font-medium line-clamp-2 text-sm">{servico.nome}</p>
-                    <p className="text-lg font-bold text-primary mt-1">R$ {servico.preco.toFixed(2)}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Coluna Direita - Carrinho e Ações */}
-            <div className="col-span-5 flex flex-col gap-3 overflow-hidden">
-              {/* Seleções Rápidas */}
-              <Card>
-                <CardContent className="grid grid-cols-2 gap-2 p-2">
-                  <div>
-                    <Label className="text-xs mb-1 flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      Vendedor <span className="text-destructive">*</span>
-                    </Label>
-                    <Select value={vendaAtual.funcionarioId || ""} onValueChange={setFuncionarioVenda}>
-                      <SelectTrigger className={!vendaAtual.funcionarioId ? "border-destructive h-9" : "h-9"}>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {funcionarios.filter((f) => f.ativo).map((func) => (
-                          <SelectItem key={func.id} value={func.id}>
-                            {func.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs mb-1">Cliente (F3)</Label>
-                    <div className="relative">
-                      <div className="flex gap-1">
-                        <Input
-                          ref={clienteSearchInputRef}
-                          placeholder="Pesquisar cliente..."
-                          value={searchClienteQuery}
-                          onChange={(e) => {
-                            setSearchClienteQuery(e.target.value)
-                            setShowClienteResults(true)
-                          }}
-                          onFocus={() => setShowClienteResults(true)}
-                          className="h-9 text-sm"
-                        />
-                        {vendaAtual.clienteId && vendaAtual.clienteId !== "none" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleLimparCliente}
-                            className="h-9 px-2"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      {showClienteResults && filtroClienteResultados.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
-                          {filtroClienteResultados.map((cliente) => (
+          <div className="grid h-screen grid-rows-[auto_1fr] gap-0">
+            {/* Header com Status e Busca */}
+            <div className="border-b border-border bg-card/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-4 p-4">
+                {/* Busca Rápida */}
+                <div className="relative flex-1 max-w-2xl flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Buscar produto ou serviço (F2)..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 pr-4 h-11 text-base"
+                    />
+                    {showSearchResults && searchResults.length > 0 && (
+                      <Card className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto shadow-xl">
+                        <CardContent className="p-2">
+                          {searchResults.map((item, index) => (
                             <button
-                              key={cliente.id}
-                              onClick={() => handleSelecionarCliente(cliente)}
-                              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b last:border-b-0 transition-colors text-sm"
+                              key={item.id}
+                              onClick={() => {
+                                adicionarItemRapido(item.id, item.tipo)
+                                setSearchQuery("")
+                                setShowSearchResults(false)
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between rounded-md p-3 text-left transition-colors",
+                                index === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
+                              )}
                             >
-                              <div className="font-medium">{cliente.nome}</div>
-                              <div className="text-xs text-gray-500">
-                                {cliente.endereco && <span>{cliente.endereco}</span>}
-                                {cliente.endereco && cliente.telefone && <span> • </span>}
-                                {cliente.telefone && <span>{cliente.telefone}</span>}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{item.nome}</span>
+                                  <Badge variant={item.tipo === 'produto' ? 'default' : 'secondary'} className="text-xs">
+                                    {item.tipo === 'produto' ? 'Produto' : 'Serviço'}
+                                  </Badge>
+                                  {item.estoque !== undefined && item.estoque <= 5 && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Estoque: {item.estoque}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
+                              <span className="font-bold text-primary">R$ {item.preco.toFixed(2)}</span>
                             </button>
                           ))}
-                        </div>
-                      )}
-                      {showClienteResults && searchClienteQuery && filtroClienteResultados.length === 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 p-3 text-xs text-gray-500">
-                          Nenhum cliente encontrado
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Carrinho */}
-              <Card className="flex-1 flex flex-col overflow-hidden">
-                <CardHeader className="pb-1.5 px-2 pt-2">
-                  <CardTitle className="flex items-center justify-between text-sm">
-                    <span>Carrinho</span>
-                    {vendaAtual.itens.length > 0 && (
-                      <Button variant="ghost" size="sm" className="h-7" onClick={limparVenda}>
-                        <X className="h-3 w-3 mr-1" />
-                        Limpar
-                      </Button>
+                        </CardContent>
+                      </Card>
                     )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-auto space-y-1 px-2 pb-2">
-                  {vendaAtual.itens.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                      <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
-                      <p className="text-sm">Carrinho vazio</p>
-                    </div>
-                  ) : (
-                    vendaAtual.itens.map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs truncate">{item.nome}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            R$ {item.preco.toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => atualizarQuantidade(index, Math.max(1, item.quantidade - 1))}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-7 text-center text-xs font-medium">{item.quantidade}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => atualizarQuantidade(index, item.quantidade + 1)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-xs">R$ {item.subtotal.toFixed(2)}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => {
-                            removerItem(index)
-                            mostrarToast("❌ Item removido")
-                          }}
-                        >
-                          <X className="h-3 w-3 text-destructive" />
-                        </Button>
-                      </div>
-                    ))
+                  </div>
+                  <Button
+                    onClick={() => setDialogNovaPerda(true)}
+                    variant="outline"
+                    size="lg"
+                    className="h-11 gap-2"
+                    title="Registrar perda de produto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Perda</span>
+                  </Button>
+                </div>
+
+                {/* Status e Ações */}
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="gap-2 px-3 py-1.5">
+                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="font-medium">Caixa Aberto</span>
+                  </Badge>
+
+                  {vendaAtual.itens.length > 0 && (
+                    <Badge className="gap-2 bg-primary px-3 py-1.5">
+                      <ShoppingCart className="h-4 w-4" />
+                      <span className="font-bold">{vendaAtual.itens.length}</span>
+                    </Badge>
                   )}
-                </CardContent>
-              </Card>
 
-              {/* Total e Ações */}
-              {vendaAtual.itens.length > 0 && (
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardContent className="space-y-2 p-2">
-                    {/* Desconto */}
-                    <div className="flex items-center gap-1.5">
-                      <Label className="text-xs">Desconto (F4)</Label>
-                      <div className="flex gap-0.5">
-                        <Button
-                          variant={descontoTipo === 'valor' ? 'default' : 'outline'}
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setDescontoTipo('valor')}
-                        >
-                          R$
-                        </Button>
-                        <Button
-                          variant={descontoTipo === 'percentual' ? 'default' : 'outline'}
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setDescontoTipo('percentual')}
-                        >
-                          %
-                        </Button>
-                      </div>
-                      <Input
-                        ref={descontoInputRef}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={descontoInput}
-                        onChange={(e) => setDescontoInput(e.target.value)}
-                        className="flex-1 h-7 text-sm"
-                        placeholder="0"
-                      />
-                    </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Vendas Hoje</p>
+                    <p className="text-lg font-bold">R$ {(resumo?.totalReceita || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                    {/* Resumo */}
-                    <div className="space-y-0.5 border-t border-border pt-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Subtotal:</span>
-                        <span>R$ {subtotal.toFixed(2)}</span>
-                      </div>
-                      {vendaAtual.desconto > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Desconto:</span>
-                          <span className="text-destructive">- R$ {vendaAtual.desconto.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xl font-bold pt-1">
-                        <span>Total:</span>
-                        <span className="text-primary">R$ {total.toFixed(2)}</span>
-                      </div>
-                    </div>
+            {/* Área Principal - Grid Disperso */}
+            <div className="grid grid-cols-12 gap-4 overflow-hidden p-4">
+              {/* Coluna Esquerda - Produtos/Serviços */}
+              <div className="col-span-7 flex flex-col gap-4 overflow-auto">
+                {/* Tabs de Visualização */}
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === 'vendidos' ? 'default' : 'outline'}
+                    onClick={() => setViewMode('vendidos')}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                    Mais Vendidos
+                  </Button>
+                  <Button
+                    variant={viewMode === 'produtos' ? 'default' : 'outline'}
+                    onClick={() => setViewMode('produtos')}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Package className="h-4 w-4" />
+                    Todos Produtos
+                  </Button>
+                  <Button
+                    variant={viewMode === 'servicos' ? 'default' : 'outline'}
+                    onClick={() => setViewMode('servicos')}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    Serviços
+                  </Button>
+                </div>
 
-                    {/* Botão Finalizar */}
-                    <Button
-                      onClick={() => setDialogPagamento(true)}
-                      disabled={!vendaAtual.funcionarioId}
-                      size="lg"
-                      className="w-full gap-2 text-base font-bold h-11"
+                {/* Grid de Produtos/Serviços */}
+                <div className="grid grid-cols-3 gap-3 auto-rows-min">
+                  {viewMode === 'vendidos' && produtosMaisVendidos.map((produto) => (
+                    <button
+                      key={produto.id}
+                      onClick={() => adicionarItemRapido(produto.id, 'produto')}
+                      className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
                     >
-                      <Check className="h-5 w-5" />
-                      Finalizar Venda (F9)
-                    </Button>
+                      {produto.estoque <= 5 && (
+                        <Badge variant="destructive" className="absolute right-1.5 top-1.5 text-xs px-1.5 py-0">
+                          Est: {produto.estoque}
+                        </Badge>
+                      )}
+                      <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
+                      <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
+                    </button>
+                  ))}
+
+                  {viewMode === 'produtos' && produtos.filter(p => p.ativo).map((produto) => (
+                    <button
+                      key={produto.id}
+                      onClick={() => adicionarItemRapido(produto.id, 'produto')}
+                      className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
+                    >
+                      {produto.estoque <= 5 && (
+                        <Badge variant="destructive" className="absolute right-1.5 top-1.5 text-xs px-1.5 py-0">
+                          Est: {produto.estoque}
+                        </Badge>
+                      )}
+                      <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
+                      <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
+                    </button>
+                  ))}
+
+                  {viewMode === 'servicos' && servicos.filter(s => s.ativo).map((servico) => (
+                    <button
+                      key={servico.id}
+                      onClick={() => adicionarItemRapido(servico.id, 'servico')}
+                      className="group relative rounded-lg border border-border bg-card p-2.5 text-left transition-all hover:border-primary hover:shadow-md active:scale-95"
+                    >
+                      <p className="font-medium line-clamp-2 text-sm">{servico.nome}</p>
+                      <p className="text-lg font-bold text-primary mt-1">R$ {servico.preco.toFixed(2)}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Coluna Direita - Carrinho e Ações */}
+              <div className="col-span-5 flex flex-col gap-3 overflow-hidden">
+                {/* Seleções Rápidas */}
+                <Card>
+                  <CardContent className="grid grid-cols-2 gap-2 p-2">
+                    <div>
+                      <Label className="text-xs mb-1 flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        Vendedor <span className="text-destructive">*</span>
+                      </Label>
+                      <Select value={vendaAtual.funcionarioId || ""} onValueChange={setFuncionarioVenda}>
+                        <SelectTrigger className={!vendaAtual.funcionarioId ? "border-destructive h-9" : "h-9"}>
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {funcionarios.filter((f) => f.ativo).map((func) => (
+                            <SelectItem key={func.id} value={func.id}>
+                              {func.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs mb-1">Cliente (F3)</Label>
+                      <div className="relative">
+                        <div className="flex gap-1">
+                          <Input
+                            ref={clienteSearchInputRef}
+                            placeholder="Pesquisar cliente..."
+                            value={searchClienteQuery}
+                            onChange={(e) => {
+                              setSearchClienteQuery(e.target.value)
+                              setShowClienteResults(true)
+                            }}
+                            onFocus={() => setShowClienteResults(true)}
+                            className="h-9 text-sm"
+                          />
+                          {vendaAtual.clienteId && vendaAtual.clienteId !== "none" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleLimparCliente}
+                              className="h-9 px-2"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        {showClienteResults && filtroClienteResultados.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
+                            {filtroClienteResultados.map((cliente) => (
+                              <button
+                                key={cliente.id}
+                                onClick={() => handleSelecionarCliente(cliente)}
+                                className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b last:border-b-0 transition-colors text-sm"
+                              >
+                                <div className="font-medium">{cliente.nome}</div>
+                                <div className="text-xs text-gray-500">
+                                  {cliente.endereco && <span>{cliente.endereco}</span>}
+                                  {cliente.endereco && cliente.telefone && <span> • </span>}
+                                  {cliente.telefone && <span>{cliente.telefone}</span>}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {showClienteResults && searchClienteQuery && filtroClienteResultados.length === 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-50 p-3 text-xs text-gray-500">
+                            Nenhum cliente encontrado
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
-              )}
+
+                {/* Carrinho */}
+                <Card className="flex-1 flex flex-col overflow-hidden">
+                  <CardHeader className="pb-1.5 px-2 pt-2">
+                    <CardTitle className="flex items-center justify-between text-sm">
+                      <span>Carrinho</span>
+                      {vendaAtual.itens.length > 0 && (
+                        <Button variant="ghost" size="sm" className="h-7" onClick={limparVenda}>
+                          <X className="h-3 w-3 mr-1" />
+                          Limpar
+                        </Button>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-auto space-y-1 px-2 pb-2">
+                    {vendaAtual.itens.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <ShoppingCart className="h-12 w-12 mb-2 opacity-20" />
+                        <p className="text-sm">Carrinho vazio</p>
+                      </div>
+                    ) : (
+                      vendaAtual.itens.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 p-1.5"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-xs truncate">{item.nome}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              R$ {item.preco.toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => atualizarQuantidade(index, Math.max(1, item.quantidade - 1))}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-7 text-center text-xs font-medium">{item.quantidade}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => atualizarQuantidade(index, item.quantidade + 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-xs">R$ {item.subtotal.toFixed(2)}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              removerItem(index)
+                              mostrarToast("❌ Item removido")
+                            }}
+                          >
+                            <X className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Total e Ações */}
+                {vendaAtual.itens.length > 0 && (
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardContent className="space-y-2 p-2">
+                      {/* Desconto */}
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs">Desconto (F4)</Label>
+                        <div className="flex gap-0.5">
+                          <Button
+                            variant={descontoTipo === 'valor' ? 'default' : 'outline'}
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setDescontoTipo('valor')}
+                          >
+                            R$
+                          </Button>
+                          <Button
+                            variant={descontoTipo === 'percentual' ? 'default' : 'outline'}
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setDescontoTipo('percentual')}
+                          >
+                            %
+                          </Button>
+                        </div>
+                        <Input
+                          ref={descontoInputRef}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={descontoInput}
+                          onChange={(e) => setDescontoInput(e.target.value)}
+                          className="flex-1 h-7 text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+
+                      {/* Resumo */}
+                      <div className="space-y-0.5 border-t border-border pt-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Subtotal:</span>
+                          <span>R$ {subtotal.toFixed(2)}</span>
+                        </div>
+                        {vendaAtual.desconto > 0 && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Desconto:</span>
+                            <span className="text-destructive">- R$ {vendaAtual.desconto.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-xl font-bold pt-1">
+                          <span>Total:</span>
+                          <span className="text-primary">R$ {total.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      {/* Botão Finalizar */}
+                      <Button
+                        onClick={() => setDialogPagamento(true)}
+                        disabled={!vendaAtual.funcionarioId}
+                        size="lg"
+                        className="w-full gap-2 text-base font-bold h-11"
+                      >
+                        <Check className="h-5 w-5" />
+                        Finalizar Venda (F9)
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
           </div>
-        </div>
         )}
       </main>
 
@@ -1530,8 +1542,8 @@ export default function PDVPage() {
                       }
                     }}
                     className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'custo'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                       }`}
                   >
                     Custo
@@ -1550,8 +1562,8 @@ export default function PDVPage() {
                       }
                     }}
                     className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'preco'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                       }`}
                   >
                     Valor Final
@@ -1618,12 +1630,9 @@ export default function PDVPage() {
                     <SelectValue placeholder="Selecione a categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categoriasPerdas.filter(c => c.ativo).map(cat => (
+                    {categoriasPerdas.map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>
-                        <div className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: cat.cor }} />
-                          {cat.nome}
-                        </div>
+                        {cat.nome}
                       </SelectItem>
                     ))}
                   </SelectContent>

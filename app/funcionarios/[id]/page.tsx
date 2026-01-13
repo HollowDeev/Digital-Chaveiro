@@ -1,12 +1,14 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useStore } from "@/lib/store"
+import { useFuncionarios, useHistoricoFuncionario } from "@/lib/hooks/useLojaData"
+import { createClient } from "@/lib/supabase/client"
 import {
   User,
   Mail,
@@ -22,18 +24,53 @@ import {
 
 export default function FuncionarioPerfilPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const { funcionarios, getHistoricoFuncionario } = useStore()
+  const [lojaId, setLojaId] = useState<string | undefined>()
+
+  // Buscar loja
+  useEffect(() => {
+    const fetchLoja = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data } = await supabase
+        .from("lojas_usuarios")
+        .select("loja_id")
+        .eq("user_id", user.id)
+        .single()
+
+      if (data) {
+        setLojaId(data.loja_id)
+      }
+    }
+    fetchLoja()
+  }, [])
+
+  const { funcionarios } = useFuncionarios(lojaId)
+  const { historico, loading: historicoLoading } = useHistoricoFuncionario(params.id, lojaId)
 
   const funcionario = funcionarios.find((f) => f.id === params.id)
-  const historico = funcionario ? getHistoricoFuncionario(params.id) : null
 
-  if (!funcionario || !historico) {
+  if (!funcionario) {
     return (
       <div className="flex min-h-screen bg-background">
         <Sidebar />
         <main className="flex-1 ml-0 lg:ml-64">
           <div className="flex items-center justify-center min-h-screen">
             <p className="text-muted-foreground">Funcionário não encontrado</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (historicoLoading || !historico) {
+    return (
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <main className="flex-1 ml-0 lg:ml-64">
+          <div className="flex items-center justify-center min-h-screen">
+            <p className="text-muted-foreground">Carregando histórico...</p>
           </div>
         </main>
       </div>
