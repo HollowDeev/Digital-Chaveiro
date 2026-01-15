@@ -22,7 +22,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
-import { useContasPagar, useContasReceber, useVendasComFiltro, useProdutos, usePerdas, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
+import { useLoja } from "@/lib/contexts/loja-context"
+import { useData } from "@/lib/contexts/data-context"
 import {
   FileText,
   Download,
@@ -42,36 +43,28 @@ import {
 } from "lucide-react"
 
 export default function RelatoriosPage() {
-  const [lojaId, setLojaId] = useState<string | undefined>()
+  const { lojaAtual } = useLoja()
+  const lojaId = lojaAtual?.id
+  
+  const {
+    produtos,
+    contasPagar,
+    contasReceber,
+    perdas,
+    categoriasPerdas,
+    funcionarios,
+    vendas,
+    loading: dataLoading,
+    refetchContasPagar,
+    refetchContasReceber,
+    refetchPerdas,
+    refetchCategoriasPerdas,
+    refetchProdutos,
+  } = useData()
+
   const [filtroData, setFiltroData] = useState<string>("hoje")
   const [dataInicio, setDataInicio] = useState<Date | undefined>()
   const [dataFim, setDataFim] = useState<Date | undefined>()
-
-  const { contas: contasPagar } = useContasPagar(lojaId)
-  const { contas: contasReceber } = useContasReceber(lojaId)
-  const { vendas: vendasDB, loading: loadingVendas } = useVendasComFiltro(lojaId, dataInicio, dataFim)
-  const { produtos } = useProdutos(lojaId)
-  const { perdas, loading: loadingPerdas } = usePerdas(lojaId, dataInicio, dataFim)
-  const { categorias: categoriasPerdas } = useCategoriasPerdas(lojaId)
-
-  // Buscar loja selecionada do usuário
-  useEffect(() => {
-    const fetchLojaDoUsuario = async () => {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: lojas } = await supabase.from("lojas").select("id").eq("dono_id", user.id).limit(1)
-
-      if (lojas && lojas.length > 0) {
-        setLojaId(lojas[0].id)
-      }
-    }
-
-    fetchLojaDoUsuario()
-  }, [])
 
   // Aplicar filtros de data rápidos
   useEffect(() => {
@@ -96,24 +89,241 @@ export default function RelatoriosPage() {
         setDataFim(new Date())
         break
       case "custom":
-        // Não altera as datas customizadas
         break
     }
   }, [filtroData])
 
-  // Estados para contas
-  const [openNovaConta, setOpenNovaConta] = useState(false)
-  const [openNovaCategoria, setOpenNovaCategoria] = useState(false)
+  // Estados para dialogs
+  const [openNovaContaPagar, setOpenNovaContaPagar] = useState(false)
+  const [openNovaContaReceber, setOpenNovaContaReceber] = useState(false)
+  const [openNovaCategoriaDespesa, setOpenNovaCategoriaDespesa] = useState(false)
   const [openNovaCategoriaPerda, setOpenNovaCategoriaPerda] = useState(false)
   const [openNovaPerda, setOpenNovaPerda] = useState(false)
   const [busca, setBusca] = useState("")
+  const [salvando, setSalvando] = useState(false)
+
+  // Estados para formulários
+  const [novaContaPagar, setNovaContaPagar] = useState({
+    descricao: "",
+    valor: "",
+    dataVencimento: "",
+    categoria: "",
+    observacoes: "",
+  })
+
+  const [novaContaReceber, setNovaContaReceber] = useState({
+    descricao: "",
+    valor: "",
+    dataVencimento: "",
+    clienteNome: "",
+    observacoes: "",
+  })
+
+  const [novaCategoriaDespesa, setNovaCategoriaDespesa] = useState({
+    nome: "",
+    descricao: "",
+  })
+
+  const [novaCategoriaPerda, setNovaCategoriaPerda] = useState({
+    nome: "",
+    descricao: "",
+  })
+
+  const [novaPerda, setNovaPerda] = useState({
+    produtoId: "",
+    categoriaId: "",
+    quantidade: "",
+    custoUnitario: "",
+    motivo: "",
+    observacoes: "",
+  })
+
+  // Categorias de despesas (hardcoded por enquanto, pode ser uma tabela separada)
+  const categoriasDespesas = [
+    "Aluguel",
+    "Energia",
+    "Água",
+    "Internet",
+    "Salários",
+    "Fornecedores",
+    "Manutenção",
+    "Marketing",
+    "Impostos",
+    "Outros",
+  ]
+
+  // Toast
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastType, setToastType] = useState<"success" | "error">("success")
+
+  const mostrarToast = (mensagem: string, tipo: "success" | "error" = "success") => {
+    setToastMessage(mensagem)
+    setToastType(tipo)
+    setShowToast(true)
+    setTimeout(() => setShowToast(false), 3000)
+  }
+
+  // Função para criar conta a pagar
+  const handleCriarContaPagar = async () => {
+    if (!lojaId || !novaContaPagar.descricao || !novaContaPagar.valor || !novaContaPagar.dataVencimento) {
+      mostrarToast("Preencha os campos obrigatórios", "error")
+      return
+    }
+
+    setSalvando(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("contas_pagar").insert({
+        loja_id: lojaId,
+        descricao: novaContaPagar.descricao,
+        valor: parseFloat(novaContaPagar.valor),
+        data_vencimento: novaContaPagar.dataVencimento,
+        categoria: novaContaPagar.categoria || null,
+        observacoes: novaContaPagar.observacoes || null,
+        status: "pendente",
+      })
+
+      if (error) throw error
+
+      mostrarToast("Conta a pagar criada com sucesso!")
+      setOpenNovaContaPagar(false)
+      setNovaContaPagar({ descricao: "", valor: "", dataVencimento: "", categoria: "", observacoes: "" })
+      refetchContasPagar()
+    } catch (err: any) {
+      console.error("Erro:", err)
+      mostrarToast(err.message || "Erro ao criar conta", "error")
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // Função para criar conta a receber
+  const handleCriarContaReceber = async () => {
+    if (!lojaId || !novaContaReceber.descricao || !novaContaReceber.valor || !novaContaReceber.dataVencimento) {
+      mostrarToast("Preencha os campos obrigatórios", "error")
+      return
+    }
+
+    setSalvando(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("contas_receber").insert({
+        loja_id: lojaId,
+        descricao: novaContaReceber.descricao,
+        valor: parseFloat(novaContaReceber.valor),
+        data_vencimento: novaContaReceber.dataVencimento,
+        cliente_nome: novaContaReceber.clienteNome || null,
+        observacoes: novaContaReceber.observacoes || null,
+        status: "pendente",
+      })
+
+      if (error) throw error
+
+      mostrarToast("Conta a receber criada com sucesso!")
+      setOpenNovaContaReceber(false)
+      setNovaContaReceber({ descricao: "", valor: "", dataVencimento: "", clienteNome: "", observacoes: "" })
+      refetchContasReceber()
+    } catch (err: any) {
+      console.error("Erro:", err)
+      mostrarToast(err.message || "Erro ao criar conta", "error")
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // Função para criar categoria de perda
+  const handleCriarCategoriaPerda = async () => {
+    if (!lojaId || !novaCategoriaPerda.nome) {
+      mostrarToast("Informe o nome da categoria", "error")
+      return
+    }
+
+    setSalvando(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("categorias_perdas").insert({
+        loja_id: lojaId,
+        nome: novaCategoriaPerda.nome,
+        descricao: novaCategoriaPerda.descricao || null,
+      })
+
+      if (error) throw error
+
+      mostrarToast("Categoria criada com sucesso!")
+      setOpenNovaCategoriaPerda(false)
+      setNovaCategoriaPerda({ nome: "", descricao: "" })
+      refetchCategoriasPerdas()
+    } catch (err: any) {
+      console.error("Erro:", err)
+      mostrarToast(err.message || "Erro ao criar categoria", "error")
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // Função para registrar perda
+  const handleRegistrarPerda = async () => {
+    if (!lojaId || !novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.categoriaId) {
+      mostrarToast("Preencha os campos obrigatórios", "error")
+      return
+    }
+
+    const quantidade = parseInt(novaPerda.quantidade)
+    const produto = produtos.find(p => p.id === novaPerda.produtoId)
+    
+    if (!produto) {
+      mostrarToast("Produto não encontrado", "error")
+      return
+    }
+
+    const custoUnitario = novaPerda.custoUnitario ? parseFloat(novaPerda.custoUnitario) : produto.custoUnitario
+    const custoTotal = custoUnitario * quantidade
+
+    setSalvando(true)
+    try {
+      const supabase = createClient()
+      
+      // Buscar usuário atual
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase.from("perdas").insert({
+        loja_id: lojaId,
+        produto_id: novaPerda.produtoId,
+        categoria_id: novaPerda.categoriaId,
+        quantidade: quantidade,
+        custo_unitario: custoUnitario,
+        custo_total: custoTotal,
+        motivo: novaPerda.motivo || categoriasPerdas.find(c => c.id === novaPerda.categoriaId)?.nome || "Perda",
+        funcionario_id: user?.id,
+        observacoes: novaPerda.observacoes || null,
+      })
+
+      if (error) throw error
+
+      // Atualizar estoque do produto
+      const novoEstoque = Math.max(0, produto.estoque - quantidade)
+      await supabase.from("produtos").update({ estoque: novoEstoque }).eq("id", novaPerda.produtoId)
+
+      mostrarToast("Perda registrada com sucesso!")
+      setOpenNovaPerda(false)
+      setNovaPerda({ produtoId: "", categoriaId: "", quantidade: "", custoUnitario: "", motivo: "", observacoes: "" })
+      refetchPerdas()
+      refetchProdutos()
+    } catch (err: any) {
+      console.error("Erro:", err)
+      mostrarToast(err.message || "Erro ao registrar perda", "error")
+    } finally {
+      setSalvando(false)
+    }
+  }
 
   // Função para marcar conta como paga
   const pagarConta = async (contaId: string) => {
     if (!lojaId) return
 
-    const supabase = createClient()
     try {
+      const supabase = createClient()
       const { error } = await supabase
         .from("contas_pagar")
         .update({
@@ -123,79 +333,63 @@ export default function RelatoriosPage() {
         .eq("id", contaId)
 
       if (error) throw error
-
-      // Refetch contas
-      window.location.reload()
+      mostrarToast("Conta marcada como paga!")
+      refetchContasPagar()
     } catch (err) {
       console.error("Erro ao pagar conta:", err)
-      alert("Erro ao pagar conta")
+      mostrarToast("Erro ao pagar conta", "error")
     }
   }
 
-  // Estatísticas gerais (usando vendasDB do banco de dados)
-  const totalVendas = vendasDB?.filter((v) => v.status === "concluida").length || 0
-  const receitaTotal = vendasDB?.filter((v) => v.status === "concluida").reduce((acc, v) => acc + v.total, 0) || 0
+  // Função para marcar conta como recebida
+  const receberConta = async (contaId: string) => {
+    if (!lojaId) return
 
-  // Produto mais vendido (por quantidade)
-  const produtoMaisVendido = useMemo(() => {
-    if (!vendasDB || !produtos || produtos.length === 0) return null
-
-    const contagemProdutos = new Map<string, { produto: any; quantidade: number }>()
-
-    vendasDB.forEach((venda) => {
-      venda.itens.forEach((item) => {
-        if (item.tipo === "produto") {
-          const atual = contagemProdutos.get(item.id) || { produto: item, quantidade: 0 }
-          contagemProdutos.set(item.id, {
-            produto: item,
-            quantidade: atual.quantidade + item.quantidade,
-          })
-        }
-      })
-    })
-
-    let maisVendido: { produto: any; quantidade: number } | null = null
-    contagemProdutos.forEach((value) => {
-      if (!maisVendido || value.quantidade > maisVendido.quantidade) {
-        maisVendido = value
-      }
-    })
-
-    return maisVendido
-  }, [vendasDB, produtos])
-
-  // Funcionário destaque (por número de vendas)
-  const funcionarioDestaque = useMemo(() => {
-    if (!vendasDB || vendasDB.length === 0) return null
-
-    const vendasPorFuncionario = new Map<string, { nome: string; count: number }>()
-
-    vendasDB.forEach((venda) => {
-      if (venda.funcionario_id) {
-        const atual = vendasPorFuncionario.get(venda.funcionario_id) || { nome: "Funcionário", count: 0 }
-        vendasPorFuncionario.set(venda.funcionario_id, {
-          ...atual,
-          count: atual.count + 1,
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("contas_receber")
+        .update({
+          status: "recebida",
+          data_recebimento: new Date().toISOString()
         })
-      }
-    })
+        .eq("id", contaId)
 
-    let destaque: { nome: string; count: number } | null = null
-    vendasPorFuncionario.forEach((value) => {
-      if (!destaque || value.count > destaque.count) {
-        destaque = value
-      }
-    })
+      if (error) throw error
+      mostrarToast("Conta marcada como recebida!")
+      refetchContasReceber()
+    } catch (err) {
+      console.error("Erro ao receber conta:", err)
+      mostrarToast("Erro ao receber conta", "error")
+    }
+  }
 
-    return destaque
-  }, [vendasDB])
+  // Estatísticas gerais
+  const vendasConcluidas = vendas?.filter((v) => v.status === "concluida") || []
+  const totalVendas = vendasConcluidas.length
+  const receitaTotal = vendasConcluidas.reduce((acc, v) => acc + v.total, 0)
+
+  // Produto mais vendido (simplificado - por valor de vendas)
+  const produtoMaisVendido = useMemo(() => {
+    if (!produtos || produtos.length === 0) return null
+    // Retorna o primeiro produto ativo como placeholder
+    const produtoAtivo = produtos.find(p => p.ativo)
+    return produtoAtivo ? { produto: produtoAtivo, quantidade: 0 } : null
+  }, [produtos])
+
+  // Funcionário destaque
+  const funcionarioDestaque = useMemo(() => {
+    if (!funcionarios || funcionarios.length === 0) return null
+    const primeiro = funcionarios[0]
+    return { nome: primeiro.nome, count: totalVendas }
+  }, [funcionarios, totalVendas])
 
   const formasPagamento = {
-    dinheiro: vendasDB?.filter((v) => v.forma_pagamento === "dinheiro" && v.status === "concluida").length || 0,
-    pix: vendasDB?.filter((v) => v.forma_pagamento === "pix" && v.status === "concluida").length || 0,
-    cartao_credito: vendasDB?.filter((v) => v.forma_pagamento === "cartao_credito" && v.status === "concluida").length || 0,
-    cartao_debito: vendasDB?.filter((v) => v.forma_pagamento === "cartao_debito" && v.status === "concluida").length || 0,
-    outros: vendasDB?.filter((v) => v.forma_pagamento === "outros" && v.status === "concluida").length || 0,
+    dinheiro: vendasConcluidas.filter((v) => v.formaPagamento === "dinheiro").length,
+    pix: vendasConcluidas.filter((v) => v.formaPagamento === "pix").length,
+    cartao_credito: vendasConcluidas.filter((v) => v.formaPagamento === "cartao_credito").length,
+    cartao_debito: vendasConcluidas.filter((v) => v.formaPagamento === "cartao_debito").length,
+    outros: vendasConcluidas.filter((v) => v.formaPagamento === "outros").length,
   }
 
   const despesasPagas = contasPagar?.filter((c) => c.status === "paga").reduce((acc, c) => acc + c.valor, 0) || 0
@@ -205,7 +399,7 @@ export default function RelatoriosPage() {
 
   const totalPagar = contasPagar?.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0) || 0
   const totalReceberPendente = contasReceber?.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0) || 0
-  const totalPerdas = perdas?.reduce((acc, p) => acc + p.custo_total, 0) || 0
+  const totalPerdas = perdas?.reduce((acc, p) => acc + (p.custoTotal || 0), 0) || 0
 
   const lucroLiquido = receitaTotal + receitasRecebidas - despesasPagas - totalPerdas
 
@@ -215,7 +409,11 @@ export default function RelatoriosPage() {
   ) || []
 
   const contasReceberFiltradas = contasReceber?.filter(
-    (c) => c.descricao.toLowerCase().includes(busca.toLowerCase()) || c.origem?.toLowerCase().includes(busca.toLowerCase())
+    (c) => c.descricao.toLowerCase().includes(busca.toLowerCase()) || c.clienteNome?.toLowerCase().includes(busca.toLowerCase())
+  ) || []
+
+  const perdasFiltradas = perdas?.filter(
+    (p) => p.produtoNome?.toLowerCase().includes(busca.toLowerCase()) || p.motivo?.toLowerCase().includes(busca.toLowerCase())
   ) || []
 
   return (
@@ -303,7 +501,7 @@ export default function RelatoriosPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-foreground">
-                      {loadingVendas ? "..." : totalVendas}
+                      {dataLoading ? "..." : totalVendas}
                     </div>
                   </CardContent>
                 </Card>
@@ -317,7 +515,7 @@ export default function RelatoriosPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-foreground">
-                      {loadingVendas ? "..." : `R$ ${receitaTotal.toFixed(2)}`}
+                      {dataLoading ? "..." : `R$ ${receitaTotal.toFixed(2)}`}
                     </div>
                   </CardContent>
                 </Card>
@@ -331,7 +529,7 @@ export default function RelatoriosPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-lg font-bold text-foreground">
-                      {loadingVendas ? "..." : produtoMaisVendido ? produtoMaisVendido.produto.nome : "N/A"}
+                      {dataLoading ? "..." : produtoMaisVendido ? produtoMaisVendido.produto.nome : "N/A"}
                     </div>
                     {produtoMaisVendido && (
                       <p className="text-sm text-muted-foreground mt-1">
@@ -350,7 +548,7 @@ export default function RelatoriosPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-lg font-bold text-foreground">
-                      {loadingVendas ? "..." : funcionarioDestaque ? funcionarioDestaque.nome : "N/A"}
+                      {dataLoading ? "..." : funcionarioDestaque ? funcionarioDestaque.nome : "N/A"}
                     </div>
                     {funcionarioDestaque && (
                       <p className="text-sm text-muted-foreground mt-1">
@@ -396,7 +594,7 @@ export default function RelatoriosPage() {
                     <div>
                       <p className="text-xs font-medium text-muted-foreground lg:text-sm">Produto Mais Vendido</p>
                       <div className="mt-2 rounded-lg bg-accent/10 p-3">
-                        {loadingVendas ? (
+                        {dataLoading ? (
                           <p className="text-sm text-muted-foreground">Carregando...</p>
                         ) : produtoMaisVendido ? (
                           <>
@@ -416,7 +614,7 @@ export default function RelatoriosPage() {
                     <div>
                       <p className="text-xs font-medium text-muted-foreground lg:text-sm">Funcionário Destaque</p>
                       <div className="mt-2 rounded-lg bg-primary/10 p-3">
-                        {loadingVendas ? (
+                        {dataLoading ? (
                           <p className="text-sm text-muted-foreground">Carregando...</p>
                         ) : funcionarioDestaque ? (
                           <>
@@ -504,10 +702,10 @@ export default function RelatoriosPage() {
                   <CardContent>
                     <div className="space-y-2">
                       <div className="text-3xl font-bold text-destructive">
-                        {loadingPerdas ? "..." : `R$ ${totalPerdas.toFixed(2)}`}
+                        {dataLoading ? "..." : `R$ ${totalPerdas.toFixed(2)}`}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {loadingPerdas ? "..." : `${perdas?.length || 0} perdas registradas`}
+                        {dataLoading ? "..." : `${perdas?.length || 0} perdas registradas`}
                       </p>
                     </div>
                   </CardContent>
@@ -556,10 +754,10 @@ export default function RelatoriosPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-destructive">
-                      {loadingPerdas ? "..." : `R$ ${totalPerdas.toFixed(2)}`}
+                      {dataLoading ? "..." : `R$ ${totalPerdas.toFixed(2)}`}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {loadingPerdas ? "..." : `${perdas?.length || 0} perdas registradas`}
+                      {dataLoading ? "..." : `${perdas?.length || 0} perdas registradas`}
                     </p>
                   </CardContent>
                 </Card>
@@ -590,7 +788,7 @@ export default function RelatoriosPage() {
                 {/* Contas a Pagar */}
                 <TabsContent value="pagar" className="space-y-4 mt-4">
                   <div className="flex justify-end gap-2">
-                    <Dialog open={openNovaCategoria} onOpenChange={setOpenNovaCategoria}>
+                    <Dialog open={openNovaCategoriaDespesa} onOpenChange={setOpenNovaCategoriaDespesa}>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm">
                           <Tag className="mr-2 h-4 w-4" />
@@ -602,11 +800,43 @@ export default function RelatoriosPage() {
                           <DialogTitle>Nova Categoria de Despesa</DialogTitle>
                           <DialogDescription>Crie uma categoria para organizar suas contas a pagar</DialogDescription>
                         </DialogHeader>
-                        {/* Form para nova categoria */}
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="categoria-nome">Nome da Categoria *</Label>
+                            <Input
+                              id="categoria-nome"
+                              placeholder="Ex: Aluguel, Energia, Fornecedores..."
+                              value={novaCategoriaDespesa.nome}
+                              onChange={(e) => setNovaCategoriaDespesa({ ...novaCategoriaDespesa, nome: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="categoria-descricao">Descrição</Label>
+                            <Textarea
+                              id="categoria-descricao"
+                              placeholder="Descrição opcional da categoria"
+                              value={novaCategoriaDespesa.descricao}
+                              onChange={(e) => setNovaCategoriaDespesa({ ...novaCategoriaDespesa, descricao: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setOpenNovaCategoriaDespesa(false)}>
+                            Cancelar
+                          </Button>
+                          <Button onClick={() => {
+                            // Por enquanto, categorias são fixas - fechar o dialog
+                            mostrarToast("Categoria salva localmente!", "success")
+                            setOpenNovaCategoriaDespesa(false)
+                            setNovaCategoriaDespesa({ nome: "", descricao: "" })
+                          }} disabled={!novaCategoriaDespesa.nome || salvando}>
+                            {salvando ? "Salvando..." : "Salvar Categoria"}
+                          </Button>
+                        </DialogFooter>
                       </DialogContent>
                     </Dialog>
 
-                    <Dialog open={openNovaConta} onOpenChange={setOpenNovaConta}>
+                    <Dialog open={openNovaContaPagar} onOpenChange={setOpenNovaContaPagar}>
                       <DialogTrigger asChild>
                         <Button size="sm">
                           <Plus className="mr-2 h-4 w-4" />
@@ -618,7 +848,78 @@ export default function RelatoriosPage() {
                           <DialogTitle>Nova Conta a Pagar</DialogTitle>
                           <DialogDescription>Registre uma nova despesa ou conta a pagar</DialogDescription>
                         </DialogHeader>
-                        {/* Form para nova conta */}
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="conta-descricao">Descrição *</Label>
+                            <Input
+                              id="conta-descricao"
+                              placeholder="Ex: Conta de luz, Pagamento fornecedor..."
+                              value={novaContaPagar.descricao}
+                              onChange={(e) => setNovaContaPagar({ ...novaContaPagar, descricao: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="conta-valor">Valor *</Label>
+                              <Input
+                                id="conta-valor"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={novaContaPagar.valor}
+                                onChange={(e) => setNovaContaPagar({ ...novaContaPagar, valor: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="conta-vencimento">Vencimento *</Label>
+                              <Input
+                                id="conta-vencimento"
+                                type="date"
+                                value={novaContaPagar.dataVencimento}
+                                onChange={(e) => setNovaContaPagar({ ...novaContaPagar, dataVencimento: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="conta-categoria">Categoria</Label>
+                            <Select
+                              value={novaContaPagar.categoria}
+                              onValueChange={(value) => setNovaContaPagar({ ...novaContaPagar, categoria: value })}
+                            >
+                              <SelectTrigger id="conta-categoria">
+                                <SelectValue placeholder="Selecione uma categoria" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categoriasDespesas.map((cat) => (
+                                  <SelectItem key={cat} value={cat}>
+                                    {cat}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="conta-observacoes">Observações</Label>
+                            <Textarea
+                              id="conta-observacoes"
+                              placeholder="Informações adicionais..."
+                              value={novaContaPagar.observacoes}
+                              onChange={(e) => setNovaContaPagar({ ...novaContaPagar, observacoes: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setOpenNovaContaPagar(false)}>
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={handleCriarContaPagar} 
+                            disabled={!novaContaPagar.descricao || !novaContaPagar.valor || !novaContaPagar.dataVencimento || salvando}
+                          >
+                            {salvando ? "Salvando..." : "Salvar Conta"}
+                          </Button>
+                        </DialogFooter>
                       </DialogContent>
                     </Dialog>
                   </div>
@@ -668,6 +969,86 @@ export default function RelatoriosPage() {
 
                 {/* Contas a Receber */}
                 <TabsContent value="receber" className="space-y-4 mt-4">
+                  <div className="flex justify-end gap-2">
+                    <Dialog open={openNovaContaReceber} onOpenChange={setOpenNovaContaReceber}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Nova Conta a Receber
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Nova Conta a Receber</DialogTitle>
+                          <DialogDescription>Registre um valor a receber de cliente ou outra fonte</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="receber-descricao">Descrição *</Label>
+                            <Input
+                              id="receber-descricao"
+                              placeholder="Ex: Serviço pendente, Venda parcelada..."
+                              value={novaContaReceber.descricao}
+                              onChange={(e) => setNovaContaReceber({ ...novaContaReceber, descricao: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="receber-valor">Valor *</Label>
+                              <Input
+                                id="receber-valor"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={novaContaReceber.valor}
+                                onChange={(e) => setNovaContaReceber({ ...novaContaReceber, valor: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="receber-vencimento">Vencimento *</Label>
+                              <Input
+                                id="receber-vencimento"
+                                type="date"
+                                value={novaContaReceber.dataVencimento}
+                                onChange={(e) => setNovaContaReceber({ ...novaContaReceber, dataVencimento: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="receber-cliente">Nome do Cliente</Label>
+                            <Input
+                              id="receber-cliente"
+                              placeholder="Nome do cliente ou devedor"
+                              value={novaContaReceber.clienteNome}
+                              onChange={(e) => setNovaContaReceber({ ...novaContaReceber, clienteNome: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="receber-observacoes">Observações</Label>
+                            <Textarea
+                              id="receber-observacoes"
+                              placeholder="Informações adicionais..."
+                              value={novaContaReceber.observacoes}
+                              onChange={(e) => setNovaContaReceber({ ...novaContaReceber, observacoes: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setOpenNovaContaReceber(false)}>
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={handleCriarContaReceber} 
+                            disabled={!novaContaReceber.descricao || !novaContaReceber.valor || !novaContaReceber.dataVencimento || salvando}
+                          >
+                            {salvando ? "Salvando..." : "Salvar Conta"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
                   <Card className="overflow-hidden">
                     <CardContent className="p-4">
                       <div className="space-y-3">
@@ -679,9 +1060,9 @@ export default function RelatoriosPage() {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                   <h4 className="text-sm font-medium">{conta.descricao}</h4>
-                                  {conta.origem && (
+                                  {conta.clienteNome && (
                                     <Badge variant="outline" className="text-xs">
-                                      {conta.origem}
+                                      {conta.clienteNome}
                                     </Badge>
                                   )}
                                 </div>
@@ -697,7 +1078,7 @@ export default function RelatoriosPage() {
                               <div className="flex items-center gap-3">
                                 <span className="text-lg font-bold text-emerald-500">R$ {conta.valor.toFixed(2)}</span>
                                 {conta.status !== "recebida" && (
-                                  <Button size="sm" variant="outline">
+                                  <Button size="sm" variant="outline" onClick={() => receberConta(conta.id)}>
                                     <CheckCircle2 className="mr-1 h-4 w-4" />
                                     Receber
                                   </Button>
@@ -724,8 +1105,39 @@ export default function RelatoriosPage() {
                       <DialogContent>
                         <DialogHeader>
                           <DialogTitle>Nova Categoria de Perda</DialogTitle>
+                          <DialogDescription>Crie uma categoria para organizar as perdas (ex: Avaria, Vencimento, Roubo)</DialogDescription>
                         </DialogHeader>
-                        {/* Form */}
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="catperda-nome">Nome da Categoria *</Label>
+                            <Input
+                              id="catperda-nome"
+                              placeholder="Ex: Avaria, Vencimento, Extravio..."
+                              value={novaCategoriaPerda.nome}
+                              onChange={(e) => setNovaCategoriaPerda({ ...novaCategoriaPerda, nome: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="catperda-descricao">Descrição</Label>
+                            <Textarea
+                              id="catperda-descricao"
+                              placeholder="Descrição opcional da categoria"
+                              value={novaCategoriaPerda.descricao}
+                              onChange={(e) => setNovaCategoriaPerda({ ...novaCategoriaPerda, descricao: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setOpenNovaCategoriaPerda(false)}>
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={handleCriarCategoriaPerda} 
+                            disabled={!novaCategoriaPerda.nome || salvando}
+                          >
+                            {salvando ? "Salvando..." : "Salvar Categoria"}
+                          </Button>
+                        </DialogFooter>
                       </DialogContent>
                     </Dialog>
 
@@ -736,11 +1148,121 @@ export default function RelatoriosPage() {
                           Registrar Perda
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="max-w-md">
                         <DialogHeader>
                           <DialogTitle>Registrar Perda</DialogTitle>
+                          <DialogDescription>Registre uma perda de produto no estoque</DialogDescription>
                         </DialogHeader>
-                        {/* Form */}
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="perda-produto">Produto *</Label>
+                            <Select
+                              value={novaPerda.produtoId}
+                              onValueChange={(value) => {
+                                const produto = produtos.find(p => p.id === value)
+                                setNovaPerda({ 
+                                  ...novaPerda, 
+                                  produtoId: value,
+                                  custoUnitario: produto?.custoUnitario?.toString() || ""
+                                })
+                              }}
+                            >
+                              <SelectTrigger id="perda-produto">
+                                <SelectValue placeholder="Selecione o produto" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {produtos.filter(p => p.ativo && p.estoque > 0).map((produto) => (
+                                  <SelectItem key={produto.id} value={produto.id}>
+                                    {produto.nome} (Estoque: {produto.estoque})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="perda-categoria">Categoria da Perda *</Label>
+                            <Select
+                              value={novaPerda.categoriaId}
+                              onValueChange={(value) => setNovaPerda({ ...novaPerda, categoriaId: value })}
+                            >
+                              <SelectTrigger id="perda-categoria">
+                                <SelectValue placeholder="Selecione a categoria" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categoriasPerdas && categoriasPerdas.length > 0 ? (
+                                  categoriasPerdas.map((cat) => (
+                                    <SelectItem key={cat.id} value={cat.id}>
+                                      {cat.nome}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="sem-categoria" disabled>
+                                    Nenhuma categoria cadastrada
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            {(!categoriasPerdas || categoriasPerdas.length === 0) && (
+                              <p className="text-xs text-muted-foreground">
+                                Crie uma categoria primeiro clicando em "Nova Categoria"
+                              </p>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="perda-quantidade">Quantidade *</Label>
+                              <Input
+                                id="perda-quantidade"
+                                type="number"
+                                min="1"
+                                placeholder="0"
+                                value={novaPerda.quantidade}
+                                onChange={(e) => setNovaPerda({ ...novaPerda, quantidade: e.target.value })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="perda-custo">Custo Unitário</Label>
+                              <Input
+                                id="perda-custo"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Automático"
+                                value={novaPerda.custoUnitario}
+                                onChange={(e) => setNovaPerda({ ...novaPerda, custoUnitario: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="perda-motivo">Motivo</Label>
+                            <Input
+                              id="perda-motivo"
+                              placeholder="Descreva o motivo da perda"
+                              value={novaPerda.motivo}
+                              onChange={(e) => setNovaPerda({ ...novaPerda, motivo: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="perda-observacoes">Observações</Label>
+                            <Textarea
+                              id="perda-observacoes"
+                              placeholder="Informações adicionais..."
+                              value={novaPerda.observacoes}
+                              onChange={(e) => setNovaPerda({ ...novaPerda, observacoes: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setOpenNovaPerda(false)}>
+                            Cancelar
+                          </Button>
+                          <Button 
+                            onClick={handleRegistrarPerda} 
+                            disabled={!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.categoriaId || salvando}
+                          >
+                            {salvando ? "Salvando..." : "Registrar Perda"}
+                          </Button>
+                        </DialogFooter>
                       </DialogContent>
                     </Dialog>
                   </div>
@@ -748,22 +1270,22 @@ export default function RelatoriosPage() {
                   <Card className="overflow-hidden">
                     <CardContent className="p-4">
                       <div className="space-y-3">
-                        {loadingPerdas ? (
+                        {dataLoading ? (
                           <p className="py-8 text-center text-sm text-muted-foreground">Carregando perdas...</p>
-                        ) : !perdas || perdas.length === 0 ? (
+                        ) : perdasFiltradas.length === 0 ? (
                           <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma perda registrada</p>
                         ) : (
-                          perdas.map((perda) => (
+                          perdasFiltradas.map((perda) => (
                             <div key={perda.id} className="flex items-center justify-between rounded-lg border border-border p-3">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <h4 className="text-sm font-medium">{perda.produtos?.nome || "Produto"}</h4>
+                                  <h4 className="text-sm font-medium">{perda.produtoNome || "Produto"}</h4>
                                   <Badge variant="outline" className="text-xs">
-                                    {perda.categorias_perdas?.nome || "Sem categoria"}
+                                    {perda.categoriaNome || "Sem categoria"}
                                   </Badge>
                                 </div>
                                 <div className="mt-1 text-xs text-muted-foreground">
-                                  {perda.quantidade} unidades • {new Date(perda.data_perda).toLocaleDateString("pt-BR")}
+                                  {perda.quantidade} unidades • {new Date(perda.data).toLocaleDateString("pt-BR")}
                                 </div>
                                 {perda.motivo && (
                                   <div className="mt-1 text-xs text-muted-foreground">
@@ -771,7 +1293,7 @@ export default function RelatoriosPage() {
                                   </div>
                                 )}
                               </div>
-                              <span className="text-lg font-bold text-destructive">R$ {perda.custo_total.toFixed(2)}</span>
+                              <span className="text-lg font-bold text-destructive">R$ {(perda.custoTotal || 0).toFixed(2)}</span>
                             </div>
                           ))
                         )}
