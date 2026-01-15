@@ -58,8 +58,6 @@ export default function PDVPage() {
 
   // 2. Estados
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<Array<{ id: string, nome: string, preco: number, tipo: 'produto' | 'servico', estoque?: number }>>([])
-  const [showSearchResults, setShowSearchResults] = useState(false)
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0)
   const [searchClienteQuery, setSearchClienteQuery] = useState("")
   const [showClienteResults, setShowClienteResults] = useState(false)
@@ -728,33 +726,20 @@ export default function PDVPage() {
     fetchUserId()
   }, [])
 
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setSearchResults([])
-      setShowSearchResults(false)
-      return
-    }
+  // Filtrar produtos e serviços baseado na busca (categoria, nome ou código)
+  const filtrarPorBusca = useCallback((items: any[], tipo: 'produto' | 'servico') => {
+    if (searchQuery.trim() === "") return items
     const query = searchQuery.toLowerCase()
-    const produtosResults = produtos
-      .filter(p => p.ativo && (
-        p.nome.toLowerCase().includes(query) ||
-        p.codigo.toLowerCase().includes(query) ||
-        p.categoria.toLowerCase().includes(query)
-      ))
-      .map(p => ({ id: p.id, nome: p.nome, preco: p.preco, tipo: 'produto' as const, estoque: p.estoque }))
-      .slice(0, 5)
-    const servicosResults = servicos
-      .filter(s => s.ativo && (
-        s.nome.toLowerCase().includes(query) ||
-        s.codigo.toLowerCase().includes(query) ||
-        s.categoria.toLowerCase().includes(query)
-      ))
-      .map(s => ({ id: s.id, nome: s.nome, preco: s.preco, tipo: 'servico' as const }))
-      .slice(0, 5)
-    setSearchResults([...produtosResults, ...servicosResults])
-    setShowSearchResults(true)
-    setSelectedSearchIndex(0)
-  }, [searchQuery, produtos, servicos])
+    return items.filter(item => 
+      item.nome.toLowerCase().includes(query) ||
+      item.codigo.toLowerCase().includes(query) ||
+      item.categoria.toLowerCase().includes(query)
+    )
+  }, [searchQuery])
+
+  const produtosFiltrados = filtrarPorBusca(produtos.filter(p => p.ativo), 'produto')
+  const servicosFiltrados = filtrarPorBusca(servicos.filter(s => s.ativo), 'servico')
+  const produtosMaisVendidosFiltrados = filtrarPorBusca(produtosMaisVendidos, 'produto')
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -765,31 +750,13 @@ export default function PDVPage() {
         e.preventDefault()
         if (vendaAtual.itens.length > 0 && vendaAtual.funcionarioId) setDialogPagamento(true)
       }
-      if (e.key === 'Escape' && showSearchResults) {
-        setShowSearchResults(false)
+      if (e.key === 'Escape' && searchQuery) {
         setSearchQuery("")
-      }
-      if (e.key === 'Enter' && showSearchResults && searchResults.length > 0) {
-        e.preventDefault()
-        const item = searchResults[selectedSearchIndex]
-        adicionarItemRapido(item.id, item.tipo)
-        setSearchQuery("")
-        setShowSearchResults(false)
-      }
-      if (showSearchResults && searchResults.length > 0) {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault()
-          setSelectedSearchIndex(prev => (prev + 1) % searchResults.length)
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault()
-          setSelectedSearchIndex(prev => prev === 0 ? searchResults.length - 1 : prev - 1)
-        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showSearchResults, searchResults, selectedSearchIndex, vendaAtual, adicionarItemRapido])
+  }, [searchQuery, vendaAtual])
 
   useEffect(() => {
     const valor = Number.parseFloat(descontoInput) || 0
@@ -942,45 +909,18 @@ export default function PDVPage() {
                     <Input
                       ref={searchInputRef}
                       type="text"
-                      placeholder="Buscar produto ou serviço (F2)..."
+                      placeholder="Filtrar por nome, código ou categoria (F2)..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10 pr-4 h-11 text-base"
                     />
-                    {showSearchResults && searchResults.length > 0 && (
-                      <Card className="absolute left-0 right-0 top-full z-50 mt-2 max-h-80 overflow-auto shadow-xl">
-                        <CardContent className="p-2">
-                          {searchResults.map((item, index) => (
-                            <button
-                              key={item.id}
-                              onClick={() => {
-                                adicionarItemRapido(item.id, item.tipo)
-                                setSearchQuery("")
-                                setShowSearchResults(false)
-                              }}
-                              className={cn(
-                                "w-full flex items-center justify-between rounded-md p-3 text-left transition-colors",
-                                index === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
-                              )}
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{item.nome}</span>
-                                  <Badge variant={item.tipo === 'produto' ? 'default' : 'secondary'} className="text-xs">
-                                    {item.tipo === 'produto' ? 'Produto' : 'Serviço'}
-                                  </Badge>
-                                  {item.estoque !== undefined && item.estoque <= 5 && (
-                                    <Badge variant="destructive" className="text-xs">
-                                      Estoque: {item.estoque}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <span className="font-bold text-primary">R$ {item.preco.toFixed(2)}</span>
-                            </button>
-                          ))}
-                        </CardContent>
-                      </Card>
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     )}
                   </div>
                   <Button
@@ -1054,7 +994,7 @@ export default function PDVPage() {
 
                 {/* Grid de Produtos/Serviços */}
                 <div className="grid grid-cols-3 gap-3 auto-rows-min">
-                  {viewMode === 'vendidos' && produtosMaisVendidos.map((produto) => (
+                  {viewMode === 'vendidos' && produtosMaisVendidosFiltrados.map((produto) => (
                     <button
                       key={produto.id}
                       onClick={() => adicionarItemRapido(produto.id, 'produto')}
@@ -1087,7 +1027,7 @@ export default function PDVPage() {
                     </button>
                   ))}
 
-                  {viewMode === 'produtos' && produtos.filter(p => p.ativo).map((produto) => (
+                  {viewMode === 'produtos' && produtosFiltrados.map((produto) => (
                     <button
                       key={produto.id}
                       onClick={() => adicionarItemRapido(produto.id, 'produto')}
@@ -1120,7 +1060,7 @@ export default function PDVPage() {
                     </button>
                   ))}
 
-                  {viewMode === 'servicos' && servicos.filter(s => s.ativo).map((servico) => (
+                  {viewMode === 'servicos' && servicosFiltrados.map((servico) => (
                     <button
                       key={servico.id}
                       onClick={() => adicionarItemRapido(servico.id, 'servico')}
@@ -1130,6 +1070,24 @@ export default function PDVPage() {
                       <p className="text-lg font-bold text-primary mt-1">R$ {servico.preco.toFixed(2)}</p>
                     </button>
                   ))}
+
+                  {/* Mensagem quando não há resultados */}
+                  {searchQuery && (
+                    (viewMode === 'vendidos' && produtosMaisVendidosFiltrados.length === 0) ||
+                    (viewMode === 'produtos' && produtosFiltrados.length === 0) ||
+                    (viewMode === 'servicos' && servicosFiltrados.length === 0)
+                  ) && (
+                    <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
+                      <Search className="h-12 w-12 text-muted-foreground/50 mb-2" />
+                      <p className="text-muted-foreground">Nenhum resultado para "{searchQuery}"</p>
+                      <button 
+                        onClick={() => setSearchQuery("")}
+                        className="text-primary hover:underline text-sm mt-1"
+                      >
+                        Limpar busca
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
