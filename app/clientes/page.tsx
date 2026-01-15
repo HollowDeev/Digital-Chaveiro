@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
-import { useClientes } from "@/lib/hooks/useLojaData"
 import { useLoja } from "@/lib/contexts/loja-context"
+import { useData } from "@/lib/contexts/data-context"
 import { Users, Search, Mail, Phone, Trash2, Edit2, Plus, Loader2 } from "lucide-react"
 import {
   Dialog,
@@ -31,7 +31,7 @@ import {
 export default function ClientesPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
-  const { clientes, loading, refetch } = useClientes(lojaId)
+  const { clientes, loading, refetchClientes: refetch } = useData()
   const [busca, setBusca] = useState("")
   const [modalAberto, setModalAberto] = useState(false)
   const [clienteSelecionado, setClienteSelecionado] = useState<any>(null)

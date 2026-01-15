@@ -12,15 +12,14 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
-import { useCaixaAberto, useFuncionarios } from "@/lib/hooks/useLojaData"
+import { useData } from "@/lib/contexts/data-context"
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Calendar } from "lucide-react"
 
 export default function CaixaPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
   const [userId, setUserId] = useState<string | undefined>()
-  const { caixaAtual, refetch } = useCaixaAberto(lojaId)
-  const { funcionarios } = useFuncionarios(lojaId)
+  const { caixaAberto: caixaAtual, funcionarios, refetchCaixa: refetch, loading: dataLoading } = useData()
 
   const [dialogAbrir, setDialogAbrir] = useState(false)
   const [dialogFechar, setDialogFechar] = useState(false)

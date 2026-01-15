@@ -13,17 +13,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
-import { useProdutos, useServicos, useFuncionarios, usePerdas, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
+import { useLoja } from "@/lib/contexts/loja-context"
+import { useData } from "@/lib/contexts/data-context"
 import { Package, Search, AlertTriangle, Plus, Edit, Trash2, TrendingUp, TrendingDown, Wrench, Clock, DollarSign, Percent, ArrowUpCircle, History, XCircle, ImageIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function GestaoInventarioPage() {
-  const [lojaId, setLojaId] = useState<string | undefined>()
-  const { produtos, refetch: refetchProdutos } = useProdutos(lojaId)
-  const { servicos, refetch: refetchServicos } = useServicos(lojaId)
-  const { funcionarios } = useFuncionarios(lojaId)
-  const { perdas, refetch: refetchPerdas } = usePerdas(lojaId)
-  const { categorias: categoriasPerdas, refetch: refetchCategoriasPerdas } = useCategoriasPerdas(lojaId)
+  const { lojaAtual } = useLoja()
+  const lojaId = lojaAtual?.id
+  
+  const { 
+    produtos, 
+    servicos, 
+    funcionarios, 
+    perdas, 
+    categoriasPerdas,
+    loading: dataLoading,
+    refetchProdutos,
+    refetchServicos,
+    refetchPerdas,
+    refetchCategoriasPerdas
+  } = useData()
 
   const [busca, setBusca] = useState("")
   const [activeTab, setActiveTab] = useState("produtos")
@@ -94,39 +104,6 @@ export default function GestaoInventarioPage() {
   const [servicoEditando, setServicoEditando] = useState<any>(null)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
-
-  // Buscar loja
-  useEffect(() => {
-    const fetchLoja = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Tentar buscar loja onde é dono
-      let { data: lojas } = await supabase.from("lojas").select("id").eq("dono_id", user.id).limit(1)
-
-      // Se não encontrou, buscar através de lojas_usuarios
-      if (!lojas || lojas.length === 0) {
-        const { data: lojaUsuario } = await supabase
-          .from("lojas_usuarios")
-          .select("loja_id")
-          .eq("usuario_id", user.id)
-          .limit(1)
-
-        if (lojaUsuario && lojaUsuario.length > 0) {
-          lojas = [{ id: lojaUsuario[0].loja_id }]
-        }
-      }
-
-      if (lojas && lojas.length > 0) {
-        console.log("Loja ID encontrado:", lojas[0].id) // Debug
-        setLojaId(lojas[0].id)
-      } else {
-        console.log("Nenhuma loja encontrada para o usuário") // Debug
-      }
-    }
-    fetchLoja()
-  }, [])
 
   // Refetch dos custos quando o dialog de custos é aberto
   useEffect(() => {

@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase/client"
-import { useProdutos, useVendas, useContasPagar, useContasReceber, useCaixaAberto, useClientes } from "@/lib/hooks/useLojaData"
+import { useLoja } from "@/lib/contexts/loja-context"
+import { useData } from "@/lib/contexts/data-context"
 import {
   LayoutDashboard,
   TrendingUp,
@@ -19,35 +18,17 @@ import {
 import { Progress } from "@/components/ui/progress"
 
 export default function DashboardPage() {
-  const [lojaId, setLojaId] = useState<string | undefined>()
-  const { produtos } = useProdutos(lojaId)
-  const { vendas } = useVendas(lojaId)
-  const { contas: contasPagar } = useContasPagar(lojaId)
-  const { contas: contasReceber } = useContasReceber(lojaId)
-  const { caixaAtual } = useCaixaAberto(lojaId)
-  const { clientes } = useClientes(lojaId)
-
-  // Buscar loja selecionada do usuário
-  useEffect(() => {
-    const fetchLojaDoUsuario = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Buscar primeira loja onde é dono
-      const { data: lojas } = await supabase
-        .from("lojas")
-        .select("id")
-        .eq("dono_id", user.id)
-        .limit(1)
-
-      if (lojas && lojas.length > 0) {
-        setLojaId(lojas[0].id)
-      }
-    }
-
-    fetchLojaDoUsuario()
-  }, [])
+  const { lojaAtual } = useLoja()
+  const lojaId = lojaAtual?.id
+  const { 
+    produtos, 
+    vendas, 
+    contasPagar, 
+    contasReceber, 
+    caixaAberto: caixaAtual, 
+    clientes,
+    loading: dataLoading 
+  } = useData()
 
   // Calcular métricas
   const hoje = new Date().toISOString().split("T")[0]

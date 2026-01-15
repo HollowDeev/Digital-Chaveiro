@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
-import { useProdutos, useServicos, useClientes, useFuncionarios, useCaixaAberto, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
+import { useData } from "@/lib/contexts/data-context"
 import { useCaixaCache } from "@/lib/hooks/useCaixaCache"
 import { useCaixaVerification } from "@/lib/hooks/useCaixaVerification"
 import { useStore } from "@/lib/store"
@@ -26,12 +26,19 @@ export default function PDVPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
   const [userId, setUserId] = useState<string | undefined>()
-  const { produtos } = useProdutos(lojaId)
-  const { servicos } = useServicos(lojaId)
-  const { clientes } = useClientes(lojaId)
-  const { funcionarios } = useFuncionarios(lojaId)
-  const { caixaAtual: caixaAbertoDB, refetch: refetchCaixa } = useCaixaAberto(lojaId)
-  const { categorias: categoriasPerdas } = useCategoriasPerdas(lojaId)
+  
+  // Usar dados do cache global
+  const { 
+    produtos, 
+    servicos, 
+    clientes, 
+    funcionarios, 
+    categoriasPerdas,
+    caixaAberto: caixaAbertoDB,
+    loading: dataLoading,
+    refetchCaixa,
+    refetchProdutos
+  } = useData()
 
   // Cache do caixa
   const { caixaAberto: caixaAbertoCached, isHydrated, salvarCache, limparCache } = useCaixaCache()

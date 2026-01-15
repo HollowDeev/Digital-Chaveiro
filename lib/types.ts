@@ -36,6 +36,7 @@ export type Cliente = {
   email?: string
   telefone?: string
   cpf?: string
+  cpf_cnpj?: string
   endereco?: string
   dataCadastro: string
   ultimaCompra?: string
@@ -174,9 +175,10 @@ export type Perda = {
   custoUnitario: number
   custoTotal: number
   funcionarioId: string
-  funcionarioNome: string
+  funcionarioNome?: string
   categoriaId: string
-  categoria: string
+  categoria?: string
+  categoriaNome?: string
   motivo: string
   data: string
   observacoes?: string
@@ -185,8 +187,9 @@ export type Perda = {
 export type CategoriaPerda = {
   id: string
   nome: string
-  cor: string
-  ativo: boolean
+  descricao?: string
+  cor?: string
+  ativo?: boolean
 }
 
 export type HistoricoFuncionario = {
