@@ -195,51 +195,51 @@ export function useFuncionarios(lojaId?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
+  const fetchFuncionarios = async () => {
     if (!lojaId) {
       setFuncionarios([])
       setLoading(false)
       return
     }
 
-    const fetchFuncionarios = async () => {
-      const supabase = createClient()
-      try {
-        // Buscar todos os usuários vinculados à loja com campos adicionais
-        const { data, error: err } = await supabase
-          .from("lojas_usuarios")
-          .select("*")
-          .eq("loja_id", lojaId)
-          .order("created_at", { ascending: false })
+    const supabase = createClient()
+    try {
+      // Buscar todos os usuários vinculados à loja com campos adicionais
+      const { data, error: err } = await supabase
+        .from("lojas_usuarios")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .order("created_at", { ascending: false })
 
-        if (err) throw err
+      if (err) throw err
 
-        // Mapear para estrutura de funcionário usando campos da tabela
-        const funcionariosMapeados = (data || []).map((fu: any) => ({
-          id: fu.id, // Usar o ID do registro lojas_usuarios
-          nome: fu.nome || `Usuário ${fu.user_id?.substring(0, 8) || 'desconhecido'}`,
-          email: fu.email || "",
-          telefone: fu.telefone || "",
-          cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
-          nivel_acesso: fu.nivel_acesso,
-          salario: fu.salario || 0,
-          dataAdmissao: fu.data_admissao || fu.created_at,
-          ativo: fu.ativo !== false,
-          user_id: fu.user_id,
-        }))
+      // Mapear para estrutura de funcionário usando campos da tabela
+      const funcionariosMapeados = (data || []).map((fu: any) => ({
+        id: fu.id, // Usar o ID do registro lojas_usuarios
+        nome: fu.nome || `Usuário ${fu.user_id?.substring(0, 8) || 'desconhecido'}`,
+        email: fu.email || "",
+        telefone: fu.telefone || "",
+        cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
+        nivel_acesso: fu.nivel_acesso,
+        salario: fu.salario || 0,
+        dataAdmissao: fu.data_admissao || fu.created_at,
+        ativo: fu.ativo !== false,
+        user_id: fu.user_id,
+      }))
 
-        setFuncionarios(funcionariosMapeados)
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Erro ao buscar funcionários"))
-      } finally {
-        setLoading(false)
-      }
+      setFuncionarios(funcionariosMapeados)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Erro ao buscar funcionários"))
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchFuncionarios()
   }, [lojaId])
 
-  return { funcionarios, loading, error }
+  return { funcionarios, loading, error, refetch: fetchFuncionarios }
 }
 
 /**

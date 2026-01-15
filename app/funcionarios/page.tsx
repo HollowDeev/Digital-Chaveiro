@@ -5,18 +5,102 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { useFuncionarios } from "@/lib/hooks/useLojaData"
-import { UserCircle, Search, Mail, Phone, Eye } from "lucide-react"
+import { UserCircle, Search, Mail, Phone, Eye, Plus } from "lucide-react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
 export default function FuncionariosPage() {
   const [lojaId, setLojaId] = useState<string | undefined>()
-  const { funcionarios } = useFuncionarios(lojaId)
+  const { funcionarios, refetch: refetchFuncionarios } = useFuncionarios(lojaId)
   const [busca, setBusca] = useState("")
+  
+  // Estados do Dialog
+  const [dialogNovoFuncionario, setDialogNovoFuncionario] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [novoFuncionario, setNovoFuncionario] = useState({
+    nome: "",
+    email: "",
+    senha: "",
+    telefone: "",
+    cargo: "Funcionário",
+    salario: ""
+  })
+  const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState("")
+  const [toastType, setToastType] = useState<"success" | "error">("success")
+
+  // Toast
+  const mostrarToast = (mensagem: string, tipo: "success" | "error" = "success") => {
+    setToastMessage(mensagem)
+    setToastType(tipo)
+    setShowToast(true)
+    setTimeout(() => setShowToast(false), 3000)
+  }
+
+  // Função para adicionar funcionário
+  const handleAdicionarFuncionario = async () => {
+    if (!lojaId || !novoFuncionario.nome || !novoFuncionario.email || !novoFuncionario.senha) {
+      mostrarToast("Preencha nome, email e senha", "error")
+      return
+    }
+
+    setSalvando(true)
+    try {
+      // Chamar API para criar o usuário no Auth e na tabela
+      const res = await fetch("/api/lojas/create-employee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lojaId,
+          email: novoFuncionario.email,
+          password: novoFuncionario.senha
+        })
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        throw new Error(result.message || "Erro ao criar funcionário")
+      }
+
+      // Atualizar os dados adicionais do funcionário na tabela lojas_usuarios
+      const supabase = createClient()
+      const { error: updateError } = await supabase
+        .from("lojas_usuarios")
+        .update({
+          nome: novoFuncionario.nome,
+          email: novoFuncionario.email,
+          telefone: novoFuncionario.telefone,
+          cargo: novoFuncionario.cargo,
+          salario: parseFloat(novoFuncionario.salario) || 0,
+          data_admissao: new Date().toISOString().split("T")[0],
+          ativo: true
+        })
+        .eq("usuario_id", result.userId)
+        .eq("loja_id", lojaId)
+
+      if (updateError) {
+        console.error("Erro ao atualizar dados:", updateError)
+      }
+
+      mostrarToast("Funcionário adicionado com sucesso!")
+      setDialogNovoFuncionario(false)
+      setNovoFuncionario({ nome: "", email: "", senha: "", telefone: "", cargo: "Funcionário", salario: "" })
+      refetchFuncionarios()
+    } catch (err: any) {
+      console.error("Erro:", err)
+      mostrarToast(err.message || "Erro ao adicionar funcionário", "error")
+    } finally {
+      setSalvando(false)
+    }
+  }
 
   // Buscar loja selecionada do usuário
   useEffect(() => {
@@ -59,7 +143,13 @@ export default function FuncionariosPage() {
           subtitle="Controle de equipe e folha de pagamento"
           icon={<UserCircle className="h-5 w-5 lg:h-6 lg:w-6" />}
           action={
-            <Button className="bg-accent text-accent-foreground hover:bg-accent/90">Adicionar Funcionário</Button>
+            <Button 
+              className="bg-accent text-accent-foreground hover:bg-accent/90"
+              onClick={() => setDialogNovoFuncionario(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar Funcionário
+            </Button>
           }
         />
 
@@ -178,6 +268,100 @@ export default function FuncionariosPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Dialog Novo Funcionário */}
+        <Dialog open={dialogNovoFuncionario} onOpenChange={setDialogNovoFuncionario}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Adicionar Novo Funcionário</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="nome">Nome Completo *</Label>
+                <Input
+                  id="nome"
+                  placeholder="Nome do funcionário"
+                  value={novoFuncionario.nome}
+                  onChange={(e) => setNovoFuncionario({ ...novoFuncionario, nome: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={novoFuncionario.email}
+                  onChange={(e) => setNovoFuncionario({ ...novoFuncionario, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="senha">Senha de Acesso *</Label>
+                <Input
+                  id="senha"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={novoFuncionario.senha}
+                  onChange={(e) => setNovoFuncionario({ ...novoFuncionario, senha: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telefone">Telefone</Label>
+                <Input
+                  id="telefone"
+                  placeholder="(00) 00000-0000"
+                  value={novoFuncionario.telefone}
+                  onChange={(e) => setNovoFuncionario({ ...novoFuncionario, telefone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cargo">Cargo</Label>
+                <Select
+                  value={novoFuncionario.cargo}
+                  onValueChange={(value) => setNovoFuncionario({ ...novoFuncionario, cargo: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cargo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Funcionário">Funcionário</SelectItem>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Vendedor">Vendedor</SelectItem>
+                    <SelectItem value="Chaveiro">Chaveiro</SelectItem>
+                    <SelectItem value="Atendente">Atendente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="salario">Salário Mensal (R$)</Label>
+                <Input
+                  id="salario"
+                  type="number"
+                  placeholder="0.00"
+                  value={novoFuncionario.salario}
+                  onChange={(e) => setNovoFuncionario({ ...novoFuncionario, salario: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogNovoFuncionario(false)} disabled={salvando}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAdicionarFuncionario} disabled={salvando}>
+                {salvando ? "Salvando..." : "Adicionar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Toast de Notificação */}
+        {showToast && (
+          <div className={`fixed bottom-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg ${
+            toastType === "success" ? "bg-green-600" : "bg-red-600"
+          } text-white`}>
+            {toastMessage}
+          </div>
+        )}
       </main>
     </div>
   )
