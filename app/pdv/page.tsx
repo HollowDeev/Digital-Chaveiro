@@ -95,6 +95,11 @@ export default function PDVPage() {
   })
   const [perdaTipoValor, setPerdaTipoValor] = useState<'custo' | 'preco'>('custo')
 
+  // Modal de Imagem do Produto
+  const [imagemModalAberta, setImagemModalAberta] = useState(false)
+  const [imagemModalUrl, setImagemModalUrl] = useState("")
+  const [imagemModalNome, setImagemModalNome] = useState("")
+
   // 3. Refs
   const searchInputRef = useRef<HTMLInputElement>(null)
   const descontoInputRef = useRef<HTMLInputElement>(null)
@@ -297,7 +302,7 @@ export default function PDVPage() {
 
       // Atualizar dados do Supabase
       refetchCaixa()
-      
+
       // Atualizar verificação do caixa para atualizar a tela
       refetchCaixaVerification()
 
@@ -825,7 +830,7 @@ export default function PDVPage() {
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    
+
     return () => {
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -1060,8 +1065,25 @@ export default function PDVPage() {
                           Est: {produto.estoque}
                         </Badge>
                       )}
-                      <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
-                      <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
+                      <div className="flex items-start gap-2">
+                        {produto.imagem && (
+                          <img 
+                            src={produto.imagem} 
+                            alt={produto.nome}
+                            className="h-10 w-10 rounded object-cover shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setImagemModalUrl(produto.imagem!)
+                              setImagemModalNome(produto.nome)
+                              setImagemModalAberta(true)
+                            }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium line-clamp-2 text-sm">{produto.nome}</p>
+                          <p className="text-lg font-bold text-primary">R$ {produto.preco.toFixed(2)}</p>
+                        </div>
+                      </div>
                     </button>
                   ))}
 
@@ -1076,8 +1098,25 @@ export default function PDVPage() {
                           Est: {produto.estoque}
                         </Badge>
                       )}
-                      <p className="font-medium line-clamp-2 text-sm pr-14">{produto.nome}</p>
-                      <p className="text-lg font-bold text-primary mt-1">R$ {produto.preco.toFixed(2)}</p>
+                      <div className="flex items-start gap-2">
+                        {produto.imagem && (
+                          <img 
+                            src={produto.imagem} 
+                            alt={produto.nome}
+                            className="h-10 w-10 rounded object-cover shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setImagemModalUrl(produto.imagem!)
+                              setImagemModalNome(produto.nome)
+                              setImagemModalAberta(true)
+                            }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium line-clamp-2 text-sm">{produto.nome}</p>
+                          <p className="text-lg font-bold text-primary">R$ {produto.preco.toFixed(2)}</p>
+                        </div>
+                      </div>
                     </button>
                   ))}
 
@@ -1688,6 +1727,24 @@ export default function PDVPage() {
               Registrar Perda
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Visualização de Imagem do Produto */}
+      <Dialog open={imagemModalAberta} onOpenChange={setImagemModalAberta}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle>{imagemModalNome}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-4 pt-0">
+            {imagemModalUrl && (
+              <img 
+                src={imagemModalUrl} 
+                alt={imagemModalNome}
+                className="max-h-[70vh] max-w-full rounded-lg object-contain"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

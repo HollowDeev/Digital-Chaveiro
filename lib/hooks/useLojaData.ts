@@ -50,6 +50,7 @@ export function useProdutos(lojaId?: string) {
           estoque: p.estoque,
           categoria: p.categoria || "",
           descricao: p.descricao || "",
+          imagem: p.imagem_url || "",
           ativo: p.ativo,
         }))
       )

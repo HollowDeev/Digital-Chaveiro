@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { useProdutos, useServicos, useFuncionarios, usePerdas, useCategoriasPerdas } from "@/lib/hooks/useLojaData"
-import { Package, Search, AlertTriangle, Plus, Edit, Trash2, TrendingUp, TrendingDown, Wrench, Clock, DollarSign, Percent, ArrowUpCircle, History, XCircle } from "lucide-react"
+import { Package, Search, AlertTriangle, Plus, Edit, Trash2, TrendingUp, TrendingDown, Wrench, Clock, DollarSign, Percent, ArrowUpCircle, History, XCircle, ImageIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function GestaoInventarioPage() {
@@ -46,7 +46,9 @@ export default function GestaoInventarioPage() {
     preco: "",
     custoUnitario: "",
     estoque: "0",
-    descricao: ""
+    descricao: "",
+    imagemFile: null as File | null,
+    imagemPreview: ""
   })
 
   const [novoServico, setNovoServico] = useState({
@@ -163,6 +165,32 @@ export default function GestaoInventarioPage() {
     }
 
     const supabase = createClient()
+    let imagemUrl = null
+
+    // Upload da imagem se existir
+    if (novoProduto.imagemFile) {
+      const fileExt = novoProduto.imagemFile.name.split('.').pop()
+      const fileName = `${lojaId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('produtos-imagens')
+        .upload(fileName, novoProduto.imagemFile, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (uploadError) {
+        console.error('Erro no upload:', uploadError)
+        mostrarToast("⚠️ Erro ao fazer upload da imagem, produto será criado sem imagem")
+      } else {
+        // Obter URL pública da imagem
+        const { data: urlData } = supabase.storage
+          .from('produtos-imagens')
+          .getPublicUrl(fileName)
+        imagemUrl = urlData.publicUrl
+      }
+    }
+
     const { error } = await supabase.from("produtos").insert({
       loja_id: lojaId,
       nome: novoProduto.nome,
@@ -172,6 +200,7 @@ export default function GestaoInventarioPage() {
       custo: Number.parseFloat(novoProduto.custoUnitario) || 0,
       estoque: Number.parseInt(novoProduto.estoque) || 0,
       descricao: novoProduto.descricao,
+      imagem_url: imagemUrl,
       ativo: true
     })
 
@@ -181,7 +210,7 @@ export default function GestaoInventarioPage() {
     } else {
       mostrarToast("✅ Produto criado com sucesso!")
       setDialogNovoProduto(false)
-      setNovoProduto({ nome: "", codigo: "", categoria: "", preco: "", custoUnitario: "", estoque: "0", descricao: "" })
+      setNovoProduto({ nome: "", codigo: "", categoria: "", preco: "", custoUnitario: "", estoque: "0", descricao: "", imagemFile: null, imagemPreview: "" })
       refetchProdutos()
     }
   }
@@ -706,6 +735,61 @@ export default function GestaoInventarioPage() {
                         placeholder="Detalhes adicionais sobre o produto..."
                         rows={3}
                       />
+                    </div>
+
+                    {/* Upload de Imagem */}
+                    <div className="space-y-2">
+                      <Label>Foto do Produto</Label>
+                      <div className="flex items-center gap-4">
+                        {novoProduto.imagemPreview ? (
+                          <div className="relative">
+                            <img 
+                              src={novoProduto.imagemPreview} 
+                              alt="Preview" 
+                              className="h-24 w-24 rounded-lg object-cover border border-border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setNovoProduto({ ...novoProduto, imagemFile: null, imagemPreview: "" })}
+                              className="absolute -right-2 -top-2 rounded-full bg-destructive p-1 text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-primary hover:bg-accent/5 transition-colors">
+                            <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground mt-1">Adicionar</span>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  if (file.size > 5 * 1024 * 1024) {
+                                    mostrarToast("⚠️ Imagem muito grande (máx 5MB)")
+                                    return
+                                  }
+                                  const reader = new FileReader()
+                                  reader.onloadend = () => {
+                                    setNovoProduto({ 
+                                      ...novoProduto, 
+                                      imagemFile: file, 
+                                      imagemPreview: reader.result as string 
+                                    })
+                                  }
+                                  reader.readAsDataURL(file)
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          <p>Formatos: JPG, PNG, WebP, GIF</p>
+                          <p>Tamanho máximo: 5MB</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>
