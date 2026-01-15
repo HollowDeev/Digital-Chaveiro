@@ -37,7 +37,7 @@ export default function PDVPage() {
   const { caixaAberto: caixaAbertoCached, isHydrated, salvarCache, limparCache } = useCaixaCache()
 
   // Verificação silenciosa do caixa
-  const { caixa: caixaVerificado, isVerifying: isVerifyingCaixa, verificacaoCompleta } = useCaixaVerification(lojaId)
+  const { caixa: caixaVerificado, isVerifying: isVerifyingCaixa, verificacaoCompleta, refetch: refetchCaixaVerification } = useCaixaVerification(lojaId)
 
   const {
     vendaAtual,
@@ -297,6 +297,9 @@ export default function PDVPage() {
 
       // Atualizar dados do Supabase
       refetchCaixa()
+      
+      // Atualizar verificação do caixa para atualizar a tela
+      refetchCaixaVerification()
 
       setDialogAbrirCaixa(false)
       setFuncionarioIdCaixa("")
@@ -805,6 +808,29 @@ export default function PDVPage() {
       salvarCache(true, caixaVerificado.id)
     }
   }, [caixaVerificado, isVerifyingCaixa, salvarCache])
+
+  // Atualizar verificação do caixa quando a página receber foco (ex: ao voltar da página de caixa)
+  useEffect(() => {
+    const handleFocus = () => {
+      refetchCaixaVerification()
+      refetchCaixa()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refetchCaixaVerification()
+        refetchCaixa()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refetchCaixaVerification, refetchCaixa])
 
   // Determinar se o caixa está fechado após verificação
   const caixaFechado = verificacaoCompleta && !caixaVerificado
