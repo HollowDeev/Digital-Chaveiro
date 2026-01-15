@@ -37,7 +37,8 @@ export default function PDVPage() {
     caixaAberto: caixaAbertoDB,
     loading: dataLoading,
     refetchCaixa,
-    refetchProdutos
+    refetchProdutos,
+    refetchCategoriasPerdas
   } = useData()
 
   // Cache do caixa
@@ -99,6 +100,9 @@ export default function PDVPage() {
     observacoes: ""
   })
   const [perdaTipoValor, setPerdaTipoValor] = useState<'custo' | 'preco'>('custo')
+  const [mostrarFormCategoria, setMostrarFormCategoria] = useState(false)
+  const [novaCategoriaNome, setNovaCategoriaNome] = useState("")
+  const [salvandoCategoria, setSalvandoCategoria] = useState(false)
 
   // Modal de Imagem do Produto
   const [imagemModalAberta, setImagemModalAberta] = useState(false)
@@ -1654,19 +1658,75 @@ export default function PDVPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Categoria *</Label>
-                <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({ ...novaPerda, categoriaId: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categoriasPerdas.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>
-                        {cat.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between">
+                  <Label>Categoria *</Label>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarFormCategoria(!mostrarFormCategoria)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {mostrarFormCategoria ? "Cancelar" : "+ Nova Categoria"}
+                  </button>
+                </div>
+                {mostrarFormCategoria ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nome da categoria..."
+                      value={novaCategoriaNome}
+                      onChange={(e) => setNovaCategoriaNome(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!novaCategoriaNome.trim() || salvandoCategoria}
+                      onClick={async () => {
+                        if (!novaCategoriaNome.trim() || !lojaId) return
+                        setSalvandoCategoria(true)
+                        try {
+                          const supabase = createClient()
+                          const { data, error } = await supabase
+                            .from("categorias_perdas")
+                            .insert({ loja_id: lojaId, nome: novaCategoriaNome.trim() })
+                            .select()
+                            .single()
+                          if (error) throw error
+                          await refetchCategoriasPerdas()
+                          setNovaPerda({ ...novaPerda, categoriaId: data.id })
+                          setNovaCategoriaNome("")
+                          setMostrarFormCategoria(false)
+                          mostrarToast("✅ Categoria criada!")
+                        } catch (err: any) {
+                          console.error("Erro ao criar categoria:", err)
+                          mostrarToast("❌ Erro ao criar categoria")
+                        } finally {
+                          setSalvandoCategoria(false)
+                        }
+                      }}
+                    >
+                      {salvandoCategoria ? "..." : "Salvar"}
+                    </Button>
+                  </div>
+                ) : (
+                  <Select value={novaPerda.categoriaId} onValueChange={(v) => setNovaPerda({ ...novaPerda, categoriaId: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoriasPerdas.length === 0 ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          Nenhuma categoria. Clique em "+ Nova Categoria"
+                        </div>
+                      ) : (
+                        categoriasPerdas.map(cat => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.nome}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
@@ -1685,6 +1745,8 @@ export default function PDVPage() {
             <Button variant="outline" onClick={() => {
               setDialogNovaPerda(false)
               setNovaPerda({ produtoId: "", tipo: "produto", quantidade: "", valor: "", funcionarioId: "", categoriaId: "", observacoes: "" })
+              setMostrarFormCategoria(false)
+              setNovaCategoriaNome("")
             }}>
               Cancelar
             </Button>
