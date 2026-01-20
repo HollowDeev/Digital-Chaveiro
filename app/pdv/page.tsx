@@ -26,13 +26,13 @@ export default function PDVPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
   const [userId, setUserId] = useState<string | undefined>()
-  
+
   // Usar dados do cache global
-  const { 
-    produtos, 
-    servicos, 
-    clientes, 
-    funcionarios, 
+  const {
+    produtos,
+    servicos,
+    clientes,
+    funcionarios,
     categoriasPerdas,
     caixaAberto: caixaAbertoDB,
     loading: dataLoading,
@@ -741,7 +741,7 @@ export default function PDVPage() {
   const filtrarPorBusca = useCallback((items: any[], tipo: 'produto' | 'servico') => {
     if (searchQuery.trim() === "") return items
     const query = searchQuery.toLowerCase()
-    return items.filter(item => 
+    return items.filter(item =>
       item.nome.toLowerCase().includes(query) ||
       item.codigo.toLowerCase().includes(query) ||
       item.categoria.toLowerCase().includes(query)
@@ -1018,8 +1018,8 @@ export default function PDVPage() {
                       )}
                       <div className="flex items-start gap-2">
                         {produto.imagem && (
-                          <img 
-                            src={produto.imagem} 
+                          <img
+                            src={produto.imagem}
                             alt={produto.nome}
                             className="h-10 w-10 rounded object-cover shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
                             onClick={(e) => {
@@ -1051,8 +1051,8 @@ export default function PDVPage() {
                       )}
                       <div className="flex items-start gap-2">
                         {produto.imagem && (
-                          <img 
-                            src={produto.imagem} 
+                          <img
+                            src={produto.imagem}
                             alt={produto.nome}
                             className="h-10 w-10 rounded object-cover shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
                             onClick={(e) => {
@@ -1088,17 +1088,17 @@ export default function PDVPage() {
                     (viewMode === 'produtos' && produtosFiltrados.length === 0) ||
                     (viewMode === 'servicos' && servicosFiltrados.length === 0)
                   ) && (
-                    <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
-                      <Search className="h-12 w-12 text-muted-foreground/50 mb-2" />
-                      <p className="text-muted-foreground">Nenhum resultado para "{searchQuery}"</p>
-                      <button 
-                        onClick={() => setSearchQuery("")}
-                        className="text-primary hover:underline text-sm mt-1"
-                      >
-                        Limpar busca
-                      </button>
-                    </div>
-                  )}
+                      <div className="col-span-3 flex flex-col items-center justify-center py-8 text-center">
+                        <Search className="h-12 w-12 text-muted-foreground/50 mb-2" />
+                        <p className="text-muted-foreground">Nenhum resultado para "{searchQuery}"</p>
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="text-primary hover:underline text-sm mt-1"
+                        >
+                          Limpar busca
+                        </button>
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -1765,8 +1765,8 @@ export default function PDVPage() {
           </DialogHeader>
           <div className="flex items-center justify-center p-4 pt-0">
             {imagemModalUrl && (
-              <img 
-                src={imagemModalUrl} 
+              <img
+                src={imagemModalUrl}
                 alt={imagemModalNome}
                 className="max-h-[70vh] max-w-full rounded-lg object-contain"
               />

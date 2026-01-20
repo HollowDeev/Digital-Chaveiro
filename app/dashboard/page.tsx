@@ -20,14 +20,14 @@ import { Progress } from "@/components/ui/progress"
 export default function DashboardPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
-  const { 
-    produtos, 
-    vendas, 
-    contasPagar, 
-    contasReceber, 
-    caixaAberto: caixaAtual, 
+  const {
+    produtos,
+    vendas,
+    contasPagar,
+    contasReceber,
+    caixaAberto: caixaAtual,
     clientes,
-    loading: dataLoading 
+    loading: dataLoading
   } = useData()
 
   // Calcular métricas

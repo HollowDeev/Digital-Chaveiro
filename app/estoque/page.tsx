@@ -21,12 +21,12 @@ import { cn } from "@/lib/utils"
 export default function GestaoInventarioPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
-  
-  const { 
-    produtos, 
-    servicos, 
-    funcionarios, 
-    perdas, 
+
+  const {
+    produtos,
+    servicos,
+    funcionarios,
+    perdas,
     categoriasPerdas,
     loading: dataLoading,
     refetchProdutos,
@@ -148,7 +148,7 @@ export default function GestaoInventarioPage() {
     if (novoProduto.imagemFile) {
       const fileExt = novoProduto.imagemFile.name.split('.').pop()
       const fileName = `${lojaId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-      
+
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('produtos-imagens')
         .upload(fileName, novoProduto.imagemFile, {
@@ -720,9 +720,9 @@ export default function GestaoInventarioPage() {
                       <div className="flex items-center gap-4">
                         {novoProduto.imagemPreview ? (
                           <div className="relative">
-                            <img 
-                              src={novoProduto.imagemPreview} 
-                              alt="Preview" 
+                            <img
+                              src={novoProduto.imagemPreview}
+                              alt="Preview"
                               className="h-24 w-24 rounded-lg object-cover border border-border"
                             />
                             <button
@@ -750,10 +750,10 @@ export default function GestaoInventarioPage() {
                                   }
                                   const reader = new FileReader()
                                   reader.onloadend = () => {
-                                    setNovoProduto({ 
-                                      ...novoProduto, 
-                                      imagemFile: file, 
-                                      imagemPreview: reader.result as string 
+                                    setNovoProduto({
+                                      ...novoProduto,
+                                      imagemFile: file,
+                                      imagemPreview: reader.result as string
                                     })
                                   }
                                   reader.readAsDataURL(file)

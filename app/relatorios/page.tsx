@@ -45,7 +45,7 @@ import {
 export default function RelatoriosPage() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
-  
+
   const {
     produtos,
     contasPagar,
@@ -271,7 +271,7 @@ export default function RelatoriosPage() {
 
     const quantidade = parseInt(novaPerda.quantidade)
     const produto = produtos.find(p => p.id === novaPerda.produtoId)
-    
+
     if (!produto) {
       mostrarToast("Produto não encontrado", "error")
       return
@@ -283,7 +283,7 @@ export default function RelatoriosPage() {
     setSalvando(true)
     try {
       const supabase = createClient()
-      
+
       // Buscar usuário atual
       const { data: { user } } = await supabase.auth.getUser()
 
@@ -913,8 +913,8 @@ export default function RelatoriosPage() {
                           <Button variant="outline" onClick={() => setOpenNovaContaPagar(false)}>
                             Cancelar
                           </Button>
-                          <Button 
-                            onClick={handleCriarContaPagar} 
+                          <Button
+                            onClick={handleCriarContaPagar}
                             disabled={!novaContaPagar.descricao || !novaContaPagar.valor || !novaContaPagar.dataVencimento || salvando}
                           >
                             {salvando ? "Salvando..." : "Salvar Conta"}
@@ -1038,8 +1038,8 @@ export default function RelatoriosPage() {
                           <Button variant="outline" onClick={() => setOpenNovaContaReceber(false)}>
                             Cancelar
                           </Button>
-                          <Button 
-                            onClick={handleCriarContaReceber} 
+                          <Button
+                            onClick={handleCriarContaReceber}
                             disabled={!novaContaReceber.descricao || !novaContaReceber.valor || !novaContaReceber.dataVencimento || salvando}
                           >
                             {salvando ? "Salvando..." : "Salvar Conta"}
@@ -1131,8 +1131,8 @@ export default function RelatoriosPage() {
                           <Button variant="outline" onClick={() => setOpenNovaCategoriaPerda(false)}>
                             Cancelar
                           </Button>
-                          <Button 
-                            onClick={handleCriarCategoriaPerda} 
+                          <Button
+                            onClick={handleCriarCategoriaPerda}
                             disabled={!novaCategoriaPerda.nome || salvando}
                           >
                             {salvando ? "Salvando..." : "Salvar Categoria"}
@@ -1160,8 +1160,8 @@ export default function RelatoriosPage() {
                               value={novaPerda.produtoId}
                               onValueChange={(value) => {
                                 const produto = produtos.find(p => p.id === value)
-                                setNovaPerda({ 
-                                  ...novaPerda, 
+                                setNovaPerda({
+                                  ...novaPerda,
                                   produtoId: value,
                                   custoUnitario: produto?.custoUnitario?.toString() || ""
                                 })
@@ -1256,8 +1256,8 @@ export default function RelatoriosPage() {
                           <Button variant="outline" onClick={() => setOpenNovaPerda(false)}>
                             Cancelar
                           </Button>
-                          <Button 
-                            onClick={handleRegistrarPerda} 
+                          <Button
+                            onClick={handleRegistrarPerda}
                             disabled={!novaPerda.produtoId || !novaPerda.quantidade || !novaPerda.categoriaId || salvando}
                           >
                             {salvando ? "Salvando..." : "Registrar Perda"}
