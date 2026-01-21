@@ -47,14 +47,23 @@ export function LojaProvider({ children }: { children: ReactNode }) {
         .select("loja_id, lojas(*)")
         .eq("usuario_id", user.id)
 
-      const lojasAcesso = acessos?.map((a: any) => a.lojas) || []
-      const todasLojas = [...(lojasOwner || []), ...lojasAcesso]
+      // Filtrar lojas válidas (não nulas) e remover duplicatas
+      const lojasAcesso = acessos?.map((a: any) => a.lojas).filter((l: any) => l !== null && l !== undefined) || []
+      
+      // Combinar e remover duplicatas por ID
+      const lojasMap = new Map<string, Loja>()
+      ;[...(lojasOwner || []), ...lojasAcesso].forEach((loja: Loja) => {
+        if (loja && loja.id) {
+          lojasMap.set(loja.id, loja)
+        }
+      })
+      const todasLojas = Array.from(lojasMap.values())
 
       setLojas(todasLojas)
 
       if (todasLojas.length > 0 && !lojaAtual) {
         const lojaIdSalva = localStorage.getItem("loja_atual_id")
-        const lojaSalva = todasLojas.find((l) => l.id === lojaIdSalva)
+        const lojaSalva = lojaIdSalva ? todasLojas.find((l) => l && l.id === lojaIdSalva) : null
         setLojaAtualState(lojaSalva || todasLojas[0])
       }
     } catch (error) {

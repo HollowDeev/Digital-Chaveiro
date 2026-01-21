@@ -136,8 +136,15 @@ export default function GestaoInventarioPage() {
 
   // CRUD Produto
   const handleCriarProduto = async () => {
-    if (!lojaId || !novoProduto.nome || !novoProduto.codigo) {
-      mostrarToast("⚠️ Preencha os campos obrigatórios")
+    console.log("handleCriarProduto - lojaId:", lojaId, "nome:", novoProduto.nome, "codigo:", novoProduto.codigo)
+    
+    if (!lojaId) {
+      mostrarToast("⚠️ Erro: Loja não identificada. Recarregue a página.")
+      return
+    }
+    
+    if (!novoProduto.nome || !novoProduto.codigo) {
+      mostrarToast("⚠️ Preencha os campos obrigatórios (nome e código)")
       return
     }
 

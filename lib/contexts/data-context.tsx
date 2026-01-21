@@ -446,12 +446,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Carregar dados quando a loja muda
     useEffect(() => {
         if (lojaId) {
-            // Só recarrega se ainda não tiver dados ou se a loja mudou
-            if (!dataLoaded) {
-                refetchAll()
-            }
+            // Sempre recarregar quando lojaId mudar
+            console.log("DataContext: lojaId mudou para", lojaId, "- recarregando dados...")
+            setDataLoaded(false)
+            refetchAll()
         } else {
             // Limpar dados se não há loja
+            console.log("DataContext: sem lojaId, limpando dados...")
             setProdutos([])
             setServicos([])
             setClientes([])
@@ -465,11 +466,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
             setDataLoaded(false)
             setLoading(false)
         }
-    }, [lojaId])
-
-    // Reset dataLoaded quando loja muda para forçar recarregamento
-    useEffect(() => {
-        setDataLoaded(false)
     }, [lojaId])
 
     return (
