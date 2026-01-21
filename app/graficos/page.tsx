@@ -10,9 +10,18 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { useVendasComFiltro, useFuncionarios } from "@/lib/hooks/useLojaData"
+import { ProtectedRoute } from "@/components/protected-route"
 import { BarChart3, Calendar, DollarSign, TrendingUp, Users, ShoppingCart, Percent } from "lucide-react"
 
 export default function GraficosPage() {
+  return (
+    <ProtectedRoute>
+      <GraficosContent />
+    </ProtectedRoute>
+  )
+}
+
+function GraficosContent() {
     const [lojaId, setLojaId] = useState<string | undefined>()
     const [dataInicio, setDataInicio] = useState<Date>()
     const [dataFim, setDataFim] = useState<Date>()

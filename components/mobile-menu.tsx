@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import ThemeToggle from "./theme-toggle"
+import { usePermissoes } from "@/lib/hooks/usePermissoes"
 import {
   LayoutDashboard,
   Package,
@@ -19,22 +20,35 @@ import {
   Receipt,
   Menu,
   Sparkles,
+  Settings,
+  TrendingUp,
 } from "lucide-react"
 
 const navItems = [
-  { href: "/pdv", label: "PDV", icon: Receipt },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/estoque", label: "Estoque", icon: Package },
-  { href: "/servicos", label: "Serviços", icon: Wrench },
-  { href: "/clientes", label: "Clientes", icon: Users },
-  { href: "/funcionarios", label: "Funcionários", icon: UserCircle },
-  { href: "/caixa", label: "Caixa", icon: Wallet },
-  { href: "/relatorios", label: "Relatórios", icon: FileText },
+  { href: "/pdv", label: "PDV", icon: Receipt, funcionarioAcesso: true },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, funcionarioAcesso: false },
+  { href: "/estoque", label: "Estoque", icon: Package, funcionarioAcesso: true },
+  { href: "/servicos", label: "Serviços", icon: Wrench, funcionarioAcesso: true },
+  { href: "/clientes", label: "Clientes", icon: Users, funcionarioAcesso: true },
+  { href: "/funcionarios", label: "Funcionários", icon: UserCircle, funcionarioAcesso: false },
+  { href: "/caixa", label: "Caixa", icon: Wallet, funcionarioAcesso: true },
+  { href: "/relatorios", label: "Relatórios", icon: FileText, funcionarioAcesso: false },
+  { href: "/graficos", label: "Gráficos", icon: TrendingUp, funcionarioAcesso: false },
+  { href: "/configuracao", label: "Configurações", icon: Settings, funcionarioAcesso: true },
 ]
 
 export function MobileMenu() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const { isFuncionario } = usePermissoes()
+
+  // Filtra os itens de navegação baseado no cargo
+  const filteredNavItems = navItems.filter(item => {
+    if (isFuncionario) {
+      return item.funcionarioAcesso
+    }
+    return true
+  })
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -66,7 +80,7 @@ export function MobileMenu() {
             <div className="mb-3 px-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Menu Principal</p>
             </div>
-            {navItems.map((item) => {
+            {filteredNavItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
 

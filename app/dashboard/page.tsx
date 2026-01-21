@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useData } from "@/lib/contexts/data-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import {
   LayoutDashboard,
   TrendingUp,
@@ -18,6 +19,14 @@ import {
 import { Progress } from "@/components/ui/progress"
 
 export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
+  )
+}
+
+function DashboardContent() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
   const {

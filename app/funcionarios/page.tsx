@@ -13,11 +13,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useData } from "@/lib/contexts/data-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import { UserCircle, Search, Mail, Phone, Eye, Plus } from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
 
 export default function FuncionariosPage() {
+  return (
+    <ProtectedRoute>
+      <FuncionariosContent />
+    </ProtectedRoute>
+  )
+}
+
+function FuncionariosContent() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
   const { funcionarios, refetchFuncionarios, loading: dataLoading } = useData()

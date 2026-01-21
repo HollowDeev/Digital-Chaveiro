@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useData } from "@/lib/contexts/data-context"
+import { ProtectedRoute } from "@/components/protected-route"
 import {
   FileText,
   Download,
@@ -43,6 +44,14 @@ import {
 } from "lucide-react"
 
 export default function RelatoriosPage() {
+  return (
+    <ProtectedRoute>
+      <RelatoriosContent />
+    </ProtectedRoute>
+  )
+}
+
+function RelatoriosContent() {
   const { lojaAtual } = useLoja()
   const lojaId = lojaAtual?.id
 

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { usePermissoes } from "@/lib/hooks/usePermissoes"
 import {
   LayoutDashboard,
   Package,
@@ -19,21 +20,31 @@ import {
 } from "lucide-react"
 import ThemeToggle from "./theme-toggle"
 
-const navItems = [
-  { href: "/pdv", label: "PDV", icon: Receipt },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/estoque", label: "Estoque", icon: Package },
-  { href: "/servicos", label: "Serviços", icon: Wrench },
-  { href: "/clientes", label: "Clientes", icon: Users },
-  { href: "/funcionarios", label: "Funcionários", icon: UserCircle },
-  { href: "/caixa", label: "Caixa", icon: Wallet },
-  { href: "/relatorios", label: "Relatórios", icon: FileText },
-  { href: "/graficos", label: "Gráficos", icon: TrendingUp },
-  { href: "/configuracao", label: "Configurações", icon: Settings },
+// Todos os itens de navegação com flag de quem pode acessar
+const allNavItems = [
+  { href: "/pdv", label: "PDV", icon: Receipt, funcionarioAcesso: true },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, funcionarioAcesso: false },
+  { href: "/estoque", label: "Estoque", icon: Package, funcionarioAcesso: true },
+  { href: "/servicos", label: "Serviços", icon: Wrench, funcionarioAcesso: true },
+  { href: "/clientes", label: "Clientes", icon: Users, funcionarioAcesso: true },
+  { href: "/funcionarios", label: "Funcionários", icon: UserCircle, funcionarioAcesso: false },
+  { href: "/caixa", label: "Caixa", icon: Wallet, funcionarioAcesso: true },
+  { href: "/relatorios", label: "Relatórios", icon: FileText, funcionarioAcesso: false },
+  { href: "/graficos", label: "Gráficos", icon: TrendingUp, funcionarioAcesso: false },
+  { href: "/configuracao", label: "Configurações", icon: Settings, funcionarioAcesso: true },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { isDono, isGerente, isFuncionario, loading } = usePermissoes()
+
+  // Filtra os itens baseado no nível de acesso
+  const navItems = allNavItems.filter(item => {
+    // Dono e gerente podem ver tudo
+    if (isDono || isGerente) return true
+    // Funcionário só vê itens permitidos
+    return item.funcionarioAcesso
+  })
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-sidebar-border bg-sidebar lg:block">
