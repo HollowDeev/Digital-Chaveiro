@@ -284,9 +284,35 @@ export default function ServicosPage() {
         return { url: publicUrlData.publicUrl, nome_arquivo: file.name }
     }
 
+    const validarProblemas = (problemas: any[]): { valido: boolean; mensagem: string } => {
+        for (let i = 0; i < problemas.length; i++) {
+            const problema = problemas[i]
+            if (!problema.motivo_id || problema.motivo_id.trim() === "") {
+                return { valido: false, mensagem: `Problema ${i + 1}: Selecione o motivo do problema` }
+            }
+            if (!problema.culpado || problema.culpado.trim() === "") {
+                return { valido: false, mensagem: `Problema ${i + 1}: Selecione o culpado` }
+            }
+            if (!problema.descricao || problema.descricao.trim() === "") {
+                return { valido: false, mensagem: `Problema ${i + 1}: Preencha a descrição do problema` }
+            }
+            if (problema.culpado === "funcionario" && (!problema.culpado_funcionario_id || problema.culpado_funcionario_id.trim() === "")) {
+                return { valido: false, mensagem: `Problema ${i + 1}: Selecione o funcionário responsável` }
+            }
+        }
+        return { valido: true, mensagem: "" }
+    }
+
     const handleSalvarProblemas = async () => {
         if (!ocorreuPerfeitamente === false || problemas.length === 0) {
             alert("Adicione pelo menos um problema antes de salvar")
+            return
+        }
+
+        // Validar todos os problemas antes de salvar
+        const validacao = validarProblemas(problemas)
+        if (!validacao.valido) {
+            alert(validacao.mensagem)
             return
         }
 
@@ -388,6 +414,15 @@ export default function ServicosPage() {
             if (!ocorreuPerfeitamente && problemas.length === 0) {
                 alert("Adicione pelo menos um problema reportado")
                 return
+            }
+
+            // Validar os problemas antes de finalizar
+            if (!ocorreuPerfeitamente && problemas.length > 0) {
+                const validacao = validarProblemas(problemas)
+                if (!validacao.valido) {
+                    alert(validacao.mensagem)
+                    return
+                }
             }
         }
 
@@ -1080,28 +1115,36 @@ export default function ServicosPage() {
 
                                             <div className="grid gap-4">
                                                 <div className="space-y-2">
-                                                    <Label>Motivo do Problema</Label>
-                                                    <Select
-                                                        value={problema.motivo_id}
-                                                        onValueChange={(value) =>
-                                                            atualizarProblema(problema.id, "motivo_id", value)
-                                                        }
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Selecione o motivo" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {motivos.map((motivo) => (
-                                                                <SelectItem key={motivo.id} value={motivo.id}>
-                                                                    {motivo.nome}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                                    <Label>Motivo do Problema *</Label>
+                                                    {motivos.length === 0 ? (
+                                                        <div className="p-3 border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">
+                                                            <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                                                                ⚠️ Nenhum motivo cadastrado. Execute o script SQL 045_seed_motivos_problemas.sql no Supabase para criar os motivos padrão.
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <Select
+                                                            value={problema.motivo_id}
+                                                            onValueChange={(value) =>
+                                                                atualizarProblema(problema.id, "motivo_id", value)
+                                                            }
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Selecione o motivo" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {motivos.map((motivo) => (
+                                                                    <SelectItem key={motivo.id} value={motivo.id}>
+                                                                        {motivo.nome}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    <Label>Culpado</Label>
+                                                    <Label>Culpado *</Label>
                                                     <Select
                                                         value={problema.culpado}
                                                         onValueChange={(value) =>
