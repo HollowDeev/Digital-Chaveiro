@@ -50,21 +50,22 @@ export default function CriarLojaPage() {
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Usuário não autenticado")
 
-      const { data: loja, error } = await supabase
-        .from("lojas")
-        .insert({
+      // Usa API server-side para criar a loja (contorna RLS para novos usuários)
+      const res = await fetch('/api/lojas/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           nome: nomeLoja,
           cnpj: cnpj || null,
           endereco: endereco || null,
           telefone: telefone || null,
-          dono_id: user.id,
-        })
-        .select()
-        .single()
+        }),
+      })
 
-      if (error) throw error
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.message || 'Erro ao criar loja')
 
-      setLojaId(loja.id)
+      setLojaId(json.loja.id)
       setEtapa("funcionario")
     } catch (error: any) {
       console.error("[v0] Erro ao criar loja:", error)
