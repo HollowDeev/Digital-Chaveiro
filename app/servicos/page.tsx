@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
+import { useData } from "@/lib/contexts/data-context"
 import {
     useServicosRealizados,
     useMotivosProblemas,
@@ -42,6 +43,7 @@ export default function ServicosPage() {
     const { servicosRealizados, loading, refetch, removeServicoLocal } = useServicosRealizados(lojaId)
     const { motivos } = useMotivosProblemas(lojaId)
     const { funcionarios } = useFuncionarios(lojaId)
+    const { caixaAberto, refetchCaixa } = useData()
 
     const [busca, setBusca] = useState("")
     const [modalAberto, setModalAberto] = useState(false)
@@ -462,6 +464,47 @@ export default function ServicosPage() {
             }
 
             console.log("Status atualizado com sucesso")
+
+            // REGISTRAR MOVIMENTAÇÃO NO CAIXA (se o serviço não estava pago antes)
+            if (!servicoSelecionado.pago && caixaAberto) {
+                const valorServico = servicoSelecionado.servico?.preco || 0
+                
+                const categoriaMap: Record<string, string> = {
+                    dinheiro: "Serviço - Dinheiro",
+                    pix: "Serviço - PIX",
+                    cartao_credito: "Serviço - Cartão Crédito",
+                    cartao_debito: "Serviço - Cartão Débito",
+                    outros: "Serviço - Outros",
+                }
+
+                const descricao = servicoSelecionado.cliente?.nome 
+                    ? `Serviço: ${servicoSelecionado.servico?.nome} - Cliente: ${servicoSelecionado.cliente.nome}`
+                    : `Serviço: ${servicoSelecionado.servico?.nome}`
+
+                console.log("Registrando movimentação no caixa:", {
+                    caixa_id: caixaAberto.id,
+                    valor: valorServico,
+                    forma_pagamento: formaPagamento
+                })
+
+                const { error: caixaError } = await supabase.from("caixa_movimentacoes").insert({
+                    caixa_id: caixaAberto.id,
+                    loja_id: lojaId,
+                    tipo: "entrada",
+                    categoria: categoriaMap[formaPagamento] || "Serviço",
+                    descricao: descricao,
+                    valor: valorServico,
+                    funcionario_id: user.id,
+                })
+
+                if (caixaError) {
+                    console.error("Erro ao registrar movimentação no caixa:", caixaError)
+                    // Não lançar erro aqui, apenas logar - o serviço já foi finalizado
+                } else {
+                    console.log("Movimentação registrada no caixa com sucesso")
+                    refetchCaixa()
+                }
+            }
 
             // Upload de arquivos de comprovação
             if (ocorreuPerfeitamente && arquivosComprovacao.length > 0) {

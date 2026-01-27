@@ -140,6 +140,323 @@ export default function PDVPage() {
     setTimeout(() => setShowToast(false), 2000)
   }, [])
 
+  // Função auxiliar para abrir janela de impressão
+  const abrirJanelaImpressao = (html: string) => {
+    const printWindow = window.open("", "_blank", "width=300,height=600")
+    if (printWindow) {
+      printWindow.document.write(html)
+      printWindow.document.close()
+      printWindow.onload = () => {
+        printWindow.focus()
+        printWindow.print()
+        printWindow.onafterprint = () => {
+          printWindow.close()
+        }
+      }
+    }
+  }
+
+  // Função para imprimir recibo diretamente
+  const imprimirRecibo = useCallback((vendaData: any, itens: any[], parcelasInfo?: any[]) => {
+    const loja = lojaAtual
+    const cliente = vendaAtual.clienteId && vendaAtual.clienteId !== "none" 
+      ? clientes.find(c => c.id === vendaAtual.clienteId) 
+      : null
+    const funcionario = funcionarios.find(f => f.usuario_id === vendaData.funcionario_id)
+
+    const formatarMoeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    const formatarData = (data: string) => new Date(data).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    const formatarDataCurta = (data: string) => new Date(data).toLocaleDateString("pt-BR")
+
+    const formaPagamentoLabel: Record<string, string> = {
+      dinheiro: "Dinheiro",
+      cartao_credito: "Cartão Crédito", 
+      cartao_debito: "Cartão Débito",
+      pix: "PIX",
+      outros: "Outros",
+    }
+
+    // Separar produtos e serviços
+    const produtos = itens.filter(item => item.tipo === "produto")
+    const servicosItens = itens.filter(item => item.tipo === "servico")
+    const temProdutos = produtos.length > 0
+    const temServicos = servicosItens.length > 0
+
+    // Gerar HTML da Ordem de Serviço (2 vias em uma página)
+    const gerarOrdemServico = () => {
+      const servicosHtml = servicosItens.map(item => {
+        const servicoInfo = servicos.find(s => s.id === item.id)
+        return `
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 6px 0;">
+              <strong>${item.nome}</strong>
+              ${servicoInfo?.descricao ? `<br><small style="color: #666;">${servicoInfo.descricao}</small>` : ""}
+            </td>
+            <td style="text-align: center;">${item.quantidade}</td>
+            <td style="text-align: right;">${formatarMoeda(item.preco)}</td>
+            <td style="text-align: right;">${formatarMoeda(item.subtotal)}</td>
+          </tr>
+        `
+      }).join("")
+
+      const totalServicos = servicosItens.reduce((acc, item) => acc + item.subtotal, 0)
+
+      const gerarViaOS = (via: string) => `
+        <div style="page-break-after: always; padding-bottom: 10mm;">
+          <!-- Cabeçalho -->
+          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px;">
+            <h1 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0;">${loja?.nome || "Loja"}</h1>
+            ${loja?.cnpj ? `<p style="font-size: 9px; margin: 2px 0;">CNPJ: ${loja.cnpj}</p>` : ""}
+            ${loja?.endereco ? `<p style="font-size: 9px; margin: 2px 0;">${loja.endereco}</p>` : ""}
+            ${loja?.telefone ? `<p style="font-size: 9px; margin: 2px 0;">Tel: ${loja.telefone}</p>` : ""}
+          </div>
+
+          <!-- Título OS -->
+          <div style="text-align: center; background: #000; color: #fff; padding: 6px; margin-bottom: 8px;">
+            <p style="font-weight: bold; font-size: 13px; margin: 0;">ORDEM DE SERVIÇO</p>
+            <p style="font-size: 9px; margin: 2px 0;">${via}</p>
+          </div>
+
+          <!-- Dados da OS -->
+          <div style="border-bottom: 1px dashed #999; padding-bottom: 6px; margin-bottom: 6px;">
+            <p style="margin: 2px 0;"><strong>Data:</strong> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
+            <p style="margin: 2px 0;"><strong>Cliente:</strong> ${cliente?.nome || "Não informado"}</p>
+            ${cliente?.telefone ? `<p style="margin: 2px 0;"><strong>Telefone:</strong> ${cliente.telefone}</p>` : ""}
+            ${funcionario?.nome ? `<p style="margin: 2px 0;"><strong>Atendente:</strong> ${funcionario.nome}</p>` : ""}
+          </div>
+
+          <!-- Serviços -->
+          <div style="border-bottom: 1px dashed #999; padding-bottom: 6px; margin-bottom: 6px;">
+            <p style="font-weight: bold; text-align: center; margin-bottom: 4px;">SERVIÇO(S)</p>
+            <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+              <thead>
+                <tr style="border-bottom: 1px solid #999;">
+                  <th style="text-align: left; padding: 2px 0;">Descrição</th>
+                  <th style="text-align: center;">Qtd</th>
+                  <th style="text-align: right;">Unit</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${servicosHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Valor a Pagar -->
+          <div style="border: 2px solid #000; padding: 8px; margin-bottom: 10px; text-align: center;">
+            <p style="font-size: 10px; margin: 0;">VALOR A PAGAR</p>
+            <p style="font-size: 16px; font-weight: bold; margin: 4px 0;">${formatarMoeda(totalServicos)}</p>
+            <p style="font-size: 9px; color: #666; margin: 0;">${pagarServicoDepois ? "Pagamento após conclusão do serviço" : "Pago antecipadamente"}</p>
+          </div>
+
+          <!-- Campo de Assinatura -->
+          <div style="margin-top: 15px; padding-top: 10px;">
+            <p style="font-size: 9px; text-align: center; margin-bottom: 20px;">
+              Declaro que estou ciente dos serviços a serem realizados e do valor a ser cobrado.
+              Após a conclusão, atesto que o serviço foi executado conforme acordado.
+            </p>
+            <div style="border-top: 1px solid #000; width: 80%; margin: 25px auto 5px auto;"></div>
+            <p style="text-align: center; font-size: 9px; margin: 0;">Assinatura do Cliente</p>
+            <p style="text-align: center; font-size: 8px; color: #666; margin-top: 3px;">${cliente?.nome || ""}</p>
+          </div>
+
+          <!-- Rodapé -->
+          <div style="text-align: center; font-size: 8px; margin-top: 10px; color: #666;">
+            <p style="margin: 0;">--------------------------------</p>
+            <p style="margin: 2px 0;">${via}</p>
+          </div>
+        </div>
+      `
+
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Ordem de Serviço - ${loja?.nome || "Loja"}</title>
+          <style>
+            @page { size: 72mm auto; margin: 0; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: 'Courier New', monospace; 
+              font-size: 10px; 
+              width: 72mm; 
+              padding: 2mm;
+              background: white;
+              color: black;
+            }
+          </style>
+        </head>
+        <body>
+          ${gerarViaOS("1ª VIA - ESTABELECIMENTO")}
+          ${gerarViaOS("2ª VIA - CLIENTE")}
+        </body>
+        </html>
+      `
+    }
+
+    // Gerar HTML do Cupom de Venda
+    const gerarCupomVenda = () => {
+      const subtotalItens = itens.reduce((acc, item) => acc + item.subtotal, 0)
+
+      const itensHtml = itens.map(item => `
+        <tr style="border-bottom: 1px solid #ddd;">
+          <td style="padding: 4px 0;">
+            ${item.tipo === "servico" ? "🔧 " : "📦 "}${item.nome}
+            ${item.tipo === "servico" ? `<br><small style="color: #666;">(${pagarServicoDepois ? "Pagar após" : "Pago"})</small>` : ""}
+          </td>
+          <td style="text-align: center;">${item.quantidade}</td>
+          <td style="text-align: right;">${formatarMoeda(item.preco)}</td>
+          <td style="text-align: right;">${formatarMoeda(item.subtotal)}</td>
+        </tr>
+      `).join("")
+
+      const parcelasHtml = parcelasInfo && parcelasInfo.length > 0 ? `
+        <div style="border-bottom: 1px dashed #999; padding-bottom: 8px; margin-bottom: 8px;">
+          <p style="font-weight: bold; text-align: center; margin-bottom: 4px;">PARCELAS</p>
+          <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #999;">
+                <th style="text-align: left;">Nº</th>
+                <th style="text-align: center;">Vencimento</th>
+                <th style="text-align: right;">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${parcelasInfo.map(p => `
+                <tr style="border-bottom: 1px solid #ddd;">
+                  <td>${p.numero}ª</td>
+                  <td style="text-align: center;">${formatarDataCurta(p.dataVencimento)}</td>
+                  <td style="text-align: right;">${formatarMoeda(p.valor)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      ` : ""
+
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Recibo - ${loja?.nome || "Loja"}</title>
+          <style>
+            @page { size: 72mm auto; margin: 0; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: 'Courier New', monospace; 
+              font-size: 11px; 
+              width: 72mm; 
+              padding: 2mm;
+              background: white;
+              color: black;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .divider { border-bottom: 1px dashed #999; padding-bottom: 8px; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th, td { padding: 2px 0; }
+          </style>
+        </head>
+        <body>
+          <!-- Cabeçalho -->
+          <div class="center divider">
+            <h1 style="font-size: 14px; font-weight: bold; text-transform: uppercase;">${loja?.nome || "Loja"}</h1>
+            ${loja?.cnpj ? `<p style="font-size: 10px;">CNPJ: ${loja.cnpj}</p>` : ""}
+            ${loja?.endereco ? `<p style="font-size: 10px;">${loja.endereco}</p>` : ""}
+            ${loja?.telefone ? `<p style="font-size: 10px;">Tel: ${loja.telefone}</p>` : ""}
+          </div>
+
+          <!-- Título -->
+          <div class="center" style="margin-bottom: 8px;">
+            <p class="bold">CUPOM NÃO FISCAL</p>
+            ${vendaData.tipo === "aprazo" ? `<p style="font-size: 10px; background: #eee; padding: 2px 4px; display: inline-block;">VENDA A PRAZO</p>` : ""}
+          </div>
+
+          <!-- Data e Vendedor -->
+          <div class="divider">
+            <p><strong>Data:</strong> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
+            ${funcionario?.nome ? `<p><strong>Vendedor:</strong> ${funcionario.nome}</p>` : ""}
+            ${cliente?.nome ? `<p><strong>Cliente:</strong> ${cliente.nome}</p>` : ""}
+          </div>
+
+          <!-- Itens -->
+          <div class="divider">
+            <p class="bold center" style="margin-bottom: 4px;">ITENS</p>
+            <table>
+              <thead>
+                <tr style="border-bottom: 1px solid #999;">
+                  <th style="text-align: left;">Item</th>
+                  <th style="text-align: center;">Qtd</th>
+                  <th style="text-align: right;">Unit</th>
+                  <th style="text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itensHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Totais -->
+          <div class="divider">
+            <div style="display: flex; justify-content: space-between;">
+              <span>Subtotal:</span>
+              <span>${formatarMoeda(subtotalItens)}</span>
+            </div>
+            ${vendaData.desconto > 0 ? `
+              <div style="display: flex; justify-content: space-between; color: #c00;">
+                <span>Desconto:</span>
+                <span>- ${formatarMoeda(vendaData.desconto)}</span>
+              </div>
+            ` : ""}
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #999;">
+              <span>TOTAL:</span>
+              <span>${formatarMoeda(vendaData.total)}</span>
+            </div>
+          </div>
+
+          <!-- Forma de Pagamento -->
+          <div class="divider">
+            <p><strong>Forma Pgto:</strong> ${formaPagamentoLabel[vendaData.forma_pagamento] || vendaData.forma_pagamento}</p>
+          </div>
+
+          <!-- Parcelas -->
+          ${parcelasHtml}
+
+          <!-- Rodapé -->
+          <div class="center" style="font-size: 9px; margin-top: 16px;">
+            <p>--------------------------------</p>
+            <p>Obrigado pela preferência!</p>
+            <p>Volte sempre!</p>
+            <p>--------------------------------</p>
+            <p style="font-size: 8px; color: #666; margin-top: 8px;">Documento sem valor fiscal</p>
+          </div>
+        </body>
+        </html>
+      `
+    }
+
+    // Lógica de impressão:
+    // 1. Se tem produtos (com ou sem serviços): imprime cupom de venda
+    // 2. Se tem serviços: imprime ordem de serviço (2 vias)
+    // 3. Se só tem serviços (sem produtos): não imprime cupom, só as ordens
+
+    if (temProdutos) {
+      // Imprimir cupom de venda (com todos os itens)
+      abrirJanelaImpressao(gerarCupomVenda())
+    }
+
+    if (temServicos) {
+      // Aguardar um pouco para não sobrepor as janelas de impressão
+      setTimeout(() => {
+        abrirJanelaImpressao(gerarOrdemServico())
+      }, temProdutos ? 500 : 0)
+    }
+  }, [lojaAtual, vendaAtual.clienteId, clientes, funcionarios, pagarServicoDepois, servicos])
+
   const filtroClienteResultados = clientes.filter((cliente) =>
     cliente.nome.toLowerCase().includes(searchClienteQuery.toLowerCase()) ||
     cliente.telefone?.includes(searchClienteQuery) ||
@@ -533,13 +850,25 @@ export default function PDVPage() {
         }
 
         adicionarVendaPrazo(vendaPrazoZustand)
+
+        // Preparar dados para impressão antes de limpar
+        const itensParaImprimir = [...vendaAtual.itens]
+        const parcelasParaImprimir = parcelas.map((p) => ({
+          numero: p.numero_parcela,
+          valor: p.valor,
+          dataVencimento: p.data_vencimento,
+        }))
+
         limparVenda()
         setDialogPagamento(false)
         setVendaAPrazo(false)
         setNumeroParcelas(1)
         setPagarServicoDepois(true)
 
-        const temServicos = vendaAtual.itens.some(item => item.tipo === 'servico')
+        // Imprimir recibo diretamente
+        imprimirRecibo(vendaData, itensParaImprimir, parcelasParaImprimir)
+
+        const temServicos = itensParaImprimir.some(item => item.tipo === 'servico')
         if (temServicos && pagarServicoDepois) {
           mostrarToast("✅ Venda a prazo registrada! Serviços abertos na página Serviços (pagamento após conclusão)")
         } else {
@@ -676,6 +1005,9 @@ export default function PDVPage() {
           refetchCaixa()
         }
 
+        // Preparar dados para impressão antes de limpar
+        const itensParaImprimir = [...vendaAtual.itens]
+
         // Manter no Zustand para compatibilidade
         finalizarVenda(formaPagamento)
         limparVenda()
@@ -684,9 +1016,12 @@ export default function PDVPage() {
         setValorRecebido("")
         setPagarServicoDepois(true)
 
-        const temServicos = vendaAtual.itens.some(item => item.tipo === 'servico')
-        const soProdutos = vendaAtual.itens.every(item => item.tipo === 'produto')
-        const soServicos = vendaAtual.itens.every(item => item.tipo === 'servico')
+        // Imprimir recibo diretamente
+        imprimirRecibo(vendaData, itensParaImprimir)
+
+        const temServicos = itensParaImprimir.some(item => item.tipo === 'servico')
+        const soProdutos = itensParaImprimir.every(item => item.tipo === 'produto')
+        const soServicos = itensParaImprimir.every(item => item.tipo === 'servico')
 
         if (soServicos && pagarServicoDepois) {
           mostrarToast("✅ Serviço(s) aberto(s) na página Serviços! Pagamento após conclusão.")
