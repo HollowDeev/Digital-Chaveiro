@@ -217,7 +217,7 @@ export function useFuncionarios(lojaId?: string) {
       // Mapear para estrutura de funcionário usando campos da tabela
       const funcionariosMapeados = (data || []).map((fu: any) => ({
         id: fu.id, // Usar o ID do registro lojas_usuarios
-        nome: fu.nome || `Usuário ${fu.user_id?.substring(0, 8) || 'desconhecido'}`,
+        nome: fu.nome || `Usuário desconhecido`,
         email: fu.email || "",
         telefone: fu.telefone || "",
         cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
@@ -225,7 +225,7 @@ export function useFuncionarios(lojaId?: string) {
         salario: fu.salario || 0,
         dataAdmissao: fu.data_admissao || fu.created_at,
         ativo: fu.ativo !== false,
-        user_id: fu.user_id,
+        usuario_id: fu.usuario_id,
       }))
 
       setFuncionarios(funcionariosMapeados)

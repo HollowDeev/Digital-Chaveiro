@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createClient } from "@/lib/supabase/client"
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useData } from "@/lib/contexts/data-context"
 import { ProtectedRoute } from "@/components/protected-route"
@@ -64,14 +63,18 @@ function FuncionariosContent() {
 
     setSalvando(true)
     try {
-      // Chamar API para criar o usuário no Auth e na tabela
+      // Chamar API para criar o usuário no Auth e na tabela (já envia todos os dados)
       const res = await fetch("/api/lojas/create-employee", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lojaId,
           email: novoFuncionario.email,
-          password: novoFuncionario.senha
+          password: novoFuncionario.senha,
+          nome: novoFuncionario.nome,
+          telefone: novoFuncionario.telefone,
+          cargo: novoFuncionario.cargo,
+          salario: novoFuncionario.salario
         })
       })
 
@@ -79,26 +82,6 @@ function FuncionariosContent() {
 
       if (!res.ok) {
         throw new Error(result.message || "Erro ao criar funcionário")
-      }
-
-      // Atualizar os dados adicionais do funcionário na tabela lojas_usuarios
-      const supabase = createClient()
-      const { error: updateError } = await supabase
-        .from("lojas_usuarios")
-        .update({
-          nome: novoFuncionario.nome,
-          email: novoFuncionario.email,
-          telefone: novoFuncionario.telefone,
-          cargo: novoFuncionario.cargo,
-          salario: parseFloat(novoFuncionario.salario) || 0,
-          data_admissao: new Date().toISOString().split("T")[0],
-          ativo: true
-        })
-        .eq("usuario_id", result.userId)
-        .eq("loja_id", lojaId)
-
-      if (updateError) {
-        console.error("Erro ao atualizar dados:", updateError)
       }
 
       mostrarToast("Funcionário adicionado com sucesso!")

@@ -6,6 +6,10 @@ export async function POST(req: Request) {
   const lojaId = (body?.lojaId || "").toString()
   const email = (body?.email || "").toString().trim()
   const password = (body?.password || "").toString()
+  const nome = (body?.nome || "").toString().trim()
+  const telefone = (body?.telefone || "").toString().trim()
+  const cargo = (body?.cargo || "Funcionário").toString().trim()
+  const salario = parseFloat(body?.salario) || 0
 
   if (!lojaId || !email || !password) {
     return NextResponse.json({ message: "lojaId, email e password são obrigatórios" }, { status: 400 })
@@ -71,7 +75,18 @@ export async function POST(req: Request) {
     if (userId) {
       const { error: accessErr } = await supabaseAdmin
         .from('lojas_usuarios')
-        .insert({ loja_id: lojaId, usuario_id: userId, nivel_acesso: 'funcionario' })
+        .insert({
+          loja_id: lojaId,
+          usuario_id: userId,
+          nivel_acesso: 'funcionario',
+          nome: nome || email.split('@')[0],
+          email: email,
+          telefone: telefone || null,
+          cargo: cargo,
+          salario: salario,
+          data_admissao: new Date().toISOString().split('T')[0],
+          ativo: true
+        })
 
       if (accessErr) {
         console.error('Erro ao inserir acesso em lojas_usuarios', accessErr)

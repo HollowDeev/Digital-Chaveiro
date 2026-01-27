@@ -192,7 +192,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             setFuncionarios(
                 (data || []).map((fu: any) => ({
                     id: fu.id,
-                    nome: fu.nome || `Usuário ${fu.user_id?.substring(0, 8) || 'desconhecido'}`,
+                    nome: fu.nome || `Usuário desconhecido`,
                     email: fu.email || "",
                     telefone: fu.telefone || "",
                     cargo: fu.cargo || (fu.nivel_acesso === "dono" ? "Dono" : fu.nivel_acesso === "gerente" ? "Gerente" : "Funcionário"),
@@ -200,7 +200,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                     salario: fu.salario || 0,
                     dataAdmissao: fu.data_admissao || fu.created_at,
                     ativo: fu.ativo !== false,
-                    user_id: fu.user_id,
+                    usuario_id: fu.usuario_id,
                 }))
             )
         } catch (err) {

@@ -90,12 +90,20 @@ export async function POST(req: Request) {
     }
 
     // Also add the owner to lojas_usuarios table with 'dono' access level
+    // Include user metadata (name) from auth
+    const userName = user.user_metadata?.nome || user.user_metadata?.name || user.email?.split('@')[0] || 'Dono'
+    
     const { error: usuarioError } = await supabaseAdmin
       .from('lojas_usuarios')
       .insert({
         loja_id: loja.id,
         usuario_id: user.id,
         nivel_acesso: 'dono',
+        nome: userName,
+        email: user.email,
+        cargo: 'Dono',
+        data_admissao: new Date().toISOString().split('T')[0],
+        ativo: true
       })
 
     if (usuarioError) {

@@ -33,11 +33,24 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Primeiro verificar se é dono
+      const { data: lojaData } = await supabase
+        .from("lojas")
+        .select("id")
+        .eq("dono_id", user.id)
+        .maybeSingle()
+
+      if (lojaData) {
+        setLojaId(lojaData.id)
+        return
+      }
+
+      // Se não é dono, buscar em lojas_usuarios
       const { data } = await supabase
         .from("lojas_usuarios")
         .select("loja_id")
-        .eq("user_id", user.id)
-        .single()
+        .eq("usuario_id", user.id)
+        .maybeSingle()
 
       if (data) {
         setLojaId(data.loja_id)
