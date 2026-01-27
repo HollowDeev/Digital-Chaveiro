@@ -14,7 +14,7 @@ INSERT INTO public.motivos_problemas_servicos (loja_id, nome, descricao, ativo)
 SELECT l.id, 'Cliente forneceu informação errada', 'Cliente passou informação incorreta sobre o serviço', true
 FROM public.lojas l
 WHERE NOT EXISTS (
-  SELECT 1 FROM public.motivos_problemas_servicos 
+  SELECT 1 FROM public.motivos_problemas_servicos  
   WHERE loja_id = l.id AND nome = 'Cliente forneceu informação errada'
 );
 

@@ -1317,7 +1317,7 @@ export default function ServicosPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {funcionarios.map((func) => (
-                                            <SelectItem key={func.id} value={func.id}>
+                                            <SelectItem key={func.id} value={func.usuario_id}>
                                                 {func.nome}
                                             </SelectItem>
                                         ))}
