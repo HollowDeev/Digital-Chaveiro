@@ -468,6 +468,7 @@ export default function ServicosPage() {
             // REGISTRAR MOVIMENTAÇÃO NO CAIXA (se o serviço não estava pago antes)
             if (!servicoSelecionado.pago && caixaAberto) {
                 const valorServico = servicoSelecionado.servico?.preco || 0
+                const vendaId = servicoSelecionado.venda_id
                 
                 const categoriaMap: Record<string, string> = {
                     dinheiro: "Serviço - Dinheiro",
@@ -484,25 +485,71 @@ export default function ServicosPage() {
                 console.log("Registrando movimentação no caixa:", {
                     caixa_id: caixaAberto.id,
                     valor: valorServico,
-                    forma_pagamento: formaPagamento
+                    forma_pagamento: formaPagamento,
+                    venda_id: vendaId
                 })
 
-                const { error: caixaError } = await supabase.from("caixa_movimentacoes").insert({
-                    caixa_id: caixaAberto.id,
-                    loja_id: lojaId,
-                    tipo: "entrada",
-                    categoria: categoriaMap[formaPagamento] || "Serviço",
-                    descricao: descricao,
-                    valor: valorServico,
-                    funcionario_id: user.id,
-                })
+                // Se tem venda_id, tentar atualizar a movimentação existente da venda
+                if (vendaId) {
+                    // Verificar se já existe uma movimentação para essa venda
+                    const { data: movimentacaoExistente } = await supabase
+                        .from("caixa_movimentacoes")
+                        .select("id, valor")
+                        .eq("venda_id", vendaId)
+                        .maybeSingle()
 
-                if (caixaError) {
-                    console.error("Erro ao registrar movimentação no caixa:", caixaError)
-                    // Não lançar erro aqui, apenas logar - o serviço já foi finalizado
+                    if (movimentacaoExistente) {
+                        // Atualizar a movimentação existente adicionando o valor do serviço
+                        const novoValor = (movimentacaoExistente.valor || 0) + valorServico
+                        const { error: updateMovError } = await supabase
+                            .from("caixa_movimentacoes")
+                            .update({ valor: novoValor })
+                            .eq("id", movimentacaoExistente.id)
+
+                        if (updateMovError) {
+                            console.error("Erro ao atualizar movimentação existente:", updateMovError)
+                        } else {
+                            console.log("Movimentação existente atualizada com sucesso. Novo valor:", novoValor)
+                            refetchCaixa()
+                        }
+                    } else {
+                        // Criar nova movimentação vinculada à venda
+                        const { error: caixaError } = await supabase.from("caixa_movimentacoes").insert({
+                            caixa_id: caixaAberto.id,
+                            loja_id: lojaId,
+                            tipo: "entrada",
+                            categoria: categoriaMap[formaPagamento] || "Serviço",
+                            descricao: descricao,
+                            valor: valorServico,
+                            funcionario_id: user.id,
+                            venda_id: vendaId,
+                        })
+
+                        if (caixaError) {
+                            console.error("Erro ao registrar movimentação no caixa:", caixaError)
+                        } else {
+                            console.log("Movimentação registrada no caixa com sucesso (vinculada à venda)")
+                            refetchCaixa()
+                        }
+                    }
                 } else {
-                    console.log("Movimentação registrada no caixa com sucesso")
-                    refetchCaixa()
+                    // Serviço sem venda associada - criar movimentação avulsa
+                    const { error: caixaError } = await supabase.from("caixa_movimentacoes").insert({
+                        caixa_id: caixaAberto.id,
+                        loja_id: lojaId,
+                        tipo: "entrada",
+                        categoria: categoriaMap[formaPagamento] || "Serviço",
+                        descricao: descricao,
+                        valor: valorServico,
+                        funcionario_id: user.id,
+                    })
+
+                    if (caixaError) {
+                        console.error("Erro ao registrar movimentação no caixa:", caixaError)
+                    } else {
+                        console.log("Movimentação registrada no caixa com sucesso")
+                        refetchCaixa()
+                    }
                 }
             }
 
