@@ -190,7 +190,7 @@ export default function PDVPage() {
           <tr style="border-bottom: 1px solid #ddd;">
             <td style="padding: 6px 0;">
               <strong>${item.nome}</strong>
-              ${servicoInfo?.descricao ? `<br><small style="color: #666;">${servicoInfo.descricao}</small>` : ""}
+              ${servicoInfo?.descricao ? `<br><small>${servicoInfo.descricao}</small>` : ""}
             </td>
             <td style="text-align: center;">${item.quantidade}</td>
             <td style="text-align: right;">${formatarMoeda(item.preco)}</td>
@@ -247,22 +247,22 @@ export default function PDVPage() {
           <div style="border: 2px solid #000; padding: 8px; margin-bottom: 10px; text-align: center;">
             <p style="font-size: 10px; margin: 0;">VALOR A PAGAR</p>
             <p style="font-size: 16px; font-weight: bold; margin: 4px 0;">${formatarMoeda(totalServicos)}</p>
-            <p style="font-size: 9px; color: #666; margin: 0;">${pagarServicoDepois ? "Pagamento após conclusão do serviço" : "Pago antecipadamente"}</p>
+            <p style="font-size: 9px; margin: 0;">${pagarServicoDepois ? "Pagamento apos conclusao do servico" : "Pago antecipadamente"}</p>
           </div>
 
           <!-- Campo de Assinatura -->
           <div style="margin-top: 15px; padding-top: 10px;">
             <p style="font-size: 9px; text-align: center; margin-bottom: 20px;">
-              Declaro que estou ciente dos serviços a serem realizados e do valor a ser cobrado.
-              Após a conclusão, atesto que o serviço foi executado conforme acordado.
+              Declaro que estou ciente dos servicos a serem realizados e do valor a ser cobrado.
+              Apos a conclusao, atesto que o servico foi executado conforme acordado.
             </p>
             <div style="border-top: 1px solid #000; width: 80%; margin: 25px auto 5px auto;"></div>
             <p style="text-align: center; font-size: 9px; margin: 0;">Assinatura do Cliente</p>
-            <p style="text-align: center; font-size: 8px; color: #666; margin-top: 3px;">${cliente?.nome || ""}</p>
+            <p style="text-align: center; font-size: 8px; margin-top: 3px;">${cliente?.nome || ""}</p>
           </div>
 
           <!-- Rodapé -->
-          <div style="text-align: center; font-size: 8px; margin-top: 10px; color: #666;">
+          <div style="text-align: center; font-size: 8px; margin-top: 10px;">
             <p style="margin: 0;">--------------------------------</p>
             <p style="margin: 2px 0;">${via}</p>
           </div>
@@ -303,8 +303,8 @@ export default function PDVPage() {
       const itensHtml = itens.map(item => `
         <tr style="border-bottom: 1px solid #ddd;">
           <td style="padding: 4px 0;">
-            ${item.tipo === "servico" ? "🔧 " : "📦 "}${item.nome}
-            ${item.tipo === "servico" ? `<br><small style="color: #666;">(${pagarServicoDepois ? "Pagar após" : "Pago"})</small>` : ""}
+            ${item.tipo === "servico" ? "[S] " : "[P] "}${item.nome}
+            ${item.tipo === "servico" ? `<br><small>(${pagarServicoDepois ? "Pagar apos" : "Pago"})</small>` : ""}
           </td>
           <td style="text-align: center;">${item.quantidade}</td>
           <td style="text-align: right;">${formatarMoeda(item.preco)}</td>
@@ -407,7 +407,7 @@ export default function PDVPage() {
               <span>${formatarMoeda(subtotalItens)}</span>
             </div>
             ${vendaData.desconto > 0 ? `
-              <div style="display: flex; justify-content: space-between; color: #c00;">
+              <div style="display: flex; justify-content: space-between;">
                 <span>Desconto:</span>
                 <span>- ${formatarMoeda(vendaData.desconto)}</span>
               </div>
@@ -429,10 +429,10 @@ export default function PDVPage() {
           <!-- Rodapé -->
           <div class="center" style="font-size: 9px; margin-top: 16px;">
             <p>--------------------------------</p>
-            <p>Obrigado pela preferência!</p>
+            <p>Obrigado pela preferencia!</p>
             <p>Volte sempre!</p>
             <p>--------------------------------</p>
-            <p style="font-size: 8px; color: #666; margin-top: 8px;">Documento sem valor fiscal</p>
+            <p style="font-size: 8px; margin-top: 8px;">Documento sem valor fiscal</p>
           </div>
         </body>
         </html>
