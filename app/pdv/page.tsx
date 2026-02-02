@@ -187,14 +187,14 @@ export default function PDVPage() {
       const servicosHtml = servicosItens.map(item => {
         const servicoInfo = servicos.find(s => s.id === item.id)
         return `
-          <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 6px 0;">
-              <strong>${item.nome}</strong>
-              ${servicoInfo?.descricao ? `<br><small>${servicoInfo.descricao}</small>` : ""}
+          <tr style="border-bottom: 1px solid #000;">
+            <td style="padding: 4px 1px; font-weight: bold; font-size: 10px;">
+              <strong>${item.nome.substring(0, 12)}</strong>
+              ${servicoInfo?.descricao ? `<br><small style="font-size: 9px;">${servicoInfo.descricao.substring(0, 20)}</small>` : ""}
             </td>
-            <td style="text-align: center;">${item.quantidade}</td>
-            <td style="text-align: right;">${formatarMoeda(item.preco)}</td>
-            <td style="text-align: right;">${formatarMoeda(item.subtotal)}</td>
+            <td style="text-align: center; font-weight: bold;">${item.quantidade}</td>
+            <td style="text-align: right; font-weight: bold; font-size: 10px;">${formatarMoeda(item.preco)}</td>
+            <td style="text-align: right; font-weight: bold; font-size: 10px;">${formatarMoeda(item.subtotal)}</td>
           </tr>
         `
       }).join("")
@@ -202,39 +202,39 @@ export default function PDVPage() {
       const totalServicos = servicosItens.reduce((acc, item) => acc + item.subtotal, 0)
 
       const gerarViaOS = (via: string) => `
-        <div style="page-break-after: always; padding-bottom: 10mm;">
+        <div style="page-break-after: always; padding-bottom: 8mm;">
           <!-- Cabeçalho -->
-          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 8px;">
-            <h1 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0;">${loja?.nome || "Loja"}</h1>
-            ${loja?.cnpj ? `<p style="font-size: 9px; margin: 2px 0;">CNPJ: ${loja.cnpj}</p>` : ""}
-            ${loja?.endereco ? `<p style="font-size: 9px; margin: 2px 0;">${loja.endereco}</p>` : ""}
-            ${loja?.telefone ? `<p style="font-size: 9px; margin: 2px 0;">Tel: ${loja.telefone}</p>` : ""}
+          <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 6px;">
+            <h1 style="font-size: 13px; font-weight: 900; text-transform: uppercase; margin: 0; letter-spacing: -0.5px;">${loja?.nome || "Loja"}</h1>
+            ${loja?.cnpj ? `<p style="font-size: 9px; margin: 2px 0; font-weight: bold;">CNPJ: ${loja.cnpj}</p>` : ""}
+            ${loja?.endereco ? `<p style="font-size: 9px; margin: 2px 0; font-weight: bold;">${loja.endereco}</p>` : ""}
+            ${loja?.telefone ? `<p style="font-size: 9px; margin: 2px 0; font-weight: bold;">Tel: ${loja.telefone}</p>` : ""}
           </div>
 
           <!-- Título OS -->
-          <div style="text-align: center; background: #000; color: #fff; padding: 6px; margin-bottom: 8px;">
-            <p style="font-weight: bold; font-size: 13px; margin: 0;">ORDEM DE SERVIÇO</p>
-            <p style="font-size: 9px; margin: 2px 0;">${via}</p>
+          <div style="text-align: center; background: #000; color: #fff; padding: 5px; margin-bottom: 6px;">
+            <p style="font-weight: 900; font-size: 12px; margin: 0;">ORDEM DE SERVICO</p>
+            <p style="font-size: 9px; margin: 2px 0; font-weight: bold;">${via}</p>
           </div>
 
           <!-- Dados da OS -->
-          <div style="border-bottom: 1px dashed #999; padding-bottom: 6px; margin-bottom: 6px;">
-            <p style="margin: 2px 0;"><strong>Data:</strong> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
-            <p style="margin: 2px 0;"><strong>Cliente:</strong> ${cliente?.nome || "Não informado"}</p>
-            ${cliente?.telefone ? `<p style="margin: 2px 0;"><strong>Telefone:</strong> ${cliente.telefone}</p>` : ""}
-            ${funcionario?.nome ? `<p style="margin: 2px 0;"><strong>Atendente:</strong> ${funcionario.nome}</p>` : ""}
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; font-size: 10px;">
+            <p style="margin: 2px 0; font-weight: bold;"><span style="font-weight: 900;">Data:</span> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
+            <p style="margin: 2px 0; font-weight: bold;"><span style="font-weight: 900;">Cliente:</span> ${cliente?.nome || "Nao informado"}</p>
+            ${cliente?.telefone ? `<p style="margin: 2px 0; font-weight: bold;"><span style="font-weight: 900;">Tel:</span> ${cliente.telefone}</p>` : ""}
+            ${funcionario?.nome ? `<p style="margin: 2px 0; font-weight: bold;"><span style="font-weight: 900;">Atendente:</span> ${funcionario.nome}</p>` : ""}
           </div>
 
           <!-- Serviços -->
-          <div style="border-bottom: 1px dashed #999; padding-bottom: 6px; margin-bottom: 6px;">
-            <p style="font-weight: bold; text-align: center; margin-bottom: 4px;">SERVIÇO(S)</p>
-            <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+          <div style="border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px;">
+            <p style="font-weight: 900; text-align: center; margin-bottom: 4px; font-size: 11px;">SERVICO(S)</p>
+            <table style="width: 100%; border-collapse: collapse; font-size: 10px; font-weight: bold; table-layout: fixed;">
               <thead>
-                <tr style="border-bottom: 1px solid #999;">
-                  <th style="text-align: left; padding: 2px 0;">Descrição</th>
-                  <th style="text-align: center;">Qtd</th>
-                  <th style="text-align: right;">Unit</th>
-                  <th style="text-align: right;">Total</th>
+                <tr style="border-bottom: 1px solid #000;">
+                  <th style="text-align: left; padding: 2px 1px; width: 40%;">Desc</th>
+                  <th style="text-align: center; width: 12%;">Qtd</th>
+                  <th style="text-align: right; width: 24%;">Unit</th>
+                  <th style="text-align: right; width: 24%;">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -244,26 +244,25 @@ export default function PDVPage() {
           </div>
 
           <!-- Valor a Pagar -->
-          <div style="border: 2px solid #000; padding: 8px; margin-bottom: 10px; text-align: center;">
-            <p style="font-size: 10px; margin: 0;">VALOR A PAGAR</p>
-            <p style="font-size: 16px; font-weight: bold; margin: 4px 0;">${formatarMoeda(totalServicos)}</p>
-            <p style="font-size: 9px; margin: 0;">${pagarServicoDepois ? "Pagamento apos conclusao do servico" : "Pago antecipadamente"}</p>
+          <div style="border: 2px solid #000; padding: 6px; margin-bottom: 8px; text-align: center;">
+            <p style="font-size: 10px; margin: 0; font-weight: bold;">VALOR A PAGAR</p>
+            <p style="font-size: 15px; font-weight: 900; margin: 3px 0;">${formatarMoeda(totalServicos)}</p>
+            <p style="font-size: 9px; margin: 0; font-weight: bold;">${pagarServicoDepois ? "Pgto apos conclusao" : "Pago antecipadamente"}</p>
           </div>
 
           <!-- Campo de Assinatura -->
-          <div style="margin-top: 15px; padding-top: 10px;">
-            <p style="font-size: 9px; text-align: center; margin-bottom: 20px;">
-              Declaro que estou ciente dos servicos a serem realizados e do valor a ser cobrado.
-              Apos a conclusao, atesto que o servico foi executado conforme acordado.
+          <div style="margin-top: 10px; padding-top: 8px;">
+            <p style="font-size: 9px; text-align: center; margin-bottom: 15px; font-weight: bold;">
+              Declaro ciencia dos servicos e valor.
             </p>
-            <div style="border-top: 1px solid #000; width: 80%; margin: 25px auto 5px auto;"></div>
-            <p style="text-align: center; font-size: 9px; margin: 0;">Assinatura do Cliente</p>
-            <p style="text-align: center; font-size: 8px; margin-top: 3px;">${cliente?.nome || ""}</p>
+            <div style="border-top: 1px solid #000; width: 80%; margin: 20px auto 4px auto;"></div>
+            <p style="text-align: center; font-size: 9px; margin: 0; font-weight: bold;">Assinatura do Cliente</p>
+            <p style="text-align: center; font-size: 8px; margin-top: 2px; font-weight: bold;">${cliente?.nome || ""}</p>
           </div>
 
           <!-- Rodapé -->
-          <div style="text-align: center; font-size: 8px; margin-top: 10px;">
-            <p style="margin: 0;">--------------------------------</p>
+          <div style="text-align: center; font-size: 9px; margin-top: 8px; font-weight: bold;">
+            <p style="margin: 0;">------------------------</p>
             <p style="margin: 2px 0;">${via}</p>
           </div>
         </div>
@@ -274,23 +273,44 @@ export default function PDVPage() {
         <html>
         <head>
           <meta charset="UTF-8">
-          <title>Ordem de Serviço - ${loja?.nome || "Loja"}</title>
+          <title>Ordem de Servico - ${loja?.nome || "Loja"}</title>
           <style>
-            @page { size: 72mm auto; margin: 0; }
-            * { margin: 0; padding: 0; box-sizing: border-box; }
+            @page { 
+              size: 58mm auto; 
+              margin: 0mm; 
+            }
+            @media print {
+              html, body {
+                width: 58mm !important;
+                max-width: 58mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+            * { 
+              margin: 0; 
+              padding: 0; 
+              box-sizing: border-box; 
+            }
             body { 
-              font-family: 'Courier New', monospace; 
-              font-size: 10px; 
-              width: 72mm; 
-              padding: 2mm;
+              font-family: 'Courier New', Courier, monospace; 
+              font-size: 11px; 
+              font-weight: bold;
+              width: 58mm; 
+              max-width: 58mm;
+              padding: 1mm 2mm;
               background: white;
               color: black;
+              line-height: 1.3;
+              -webkit-font-smoothing: none;
             }
           </style>
         </head>
         <body>
-          ${gerarViaOS("1ª VIA - ESTABELECIMENTO")}
-          ${gerarViaOS("2ª VIA - CLIENTE")}
+          ${gerarViaOS("1a VIA - ESTABELECIMENTO")}
+          ${gerarViaOS("2a VIA - CLIENTE")}
         </body>
         </html>
       `
@@ -301,34 +321,34 @@ export default function PDVPage() {
       const subtotalItens = itens.reduce((acc, item) => acc + item.subtotal, 0)
 
       const itensHtml = itens.map(item => `
-        <tr style="border-bottom: 1px solid #ddd;">
-          <td style="padding: 4px 0;">
-            ${item.tipo === "servico" ? "[S] " : "[P] "}${item.nome}
-            ${item.tipo === "servico" ? `<br><small>(${pagarServicoDepois ? "Pagar apos" : "Pago"})</small>` : ""}
+        <tr style="border-bottom: 1px solid #000;">
+          <td style="padding: 3px 1px; font-weight: bold; font-size: 10px; word-wrap: break-word;">
+            ${item.tipo === "servico" ? "[S]" : "[P]"} ${item.nome.substring(0, 12)}
+            ${item.tipo === "servico" ? `<br><small style="font-size: 9px;">(${pagarServicoDepois ? "Apos" : "Pago"})</small>` : ""}
           </td>
-          <td style="text-align: center;">${item.quantidade}</td>
-          <td style="text-align: right;">${formatarMoeda(item.preco)}</td>
-          <td style="text-align: right;">${formatarMoeda(item.subtotal)}</td>
+          <td style="text-align: center; font-weight: bold;">${item.quantidade}</td>
+          <td style="text-align: right; font-weight: bold; font-size: 10px;">${formatarMoeda(item.preco)}</td>
+          <td style="text-align: right; font-weight: bold; font-size: 10px;">${formatarMoeda(item.subtotal)}</td>
         </tr>
       `).join("")
 
       const parcelasHtml = parcelasInfo && parcelasInfo.length > 0 ? `
-        <div style="border-bottom: 1px dashed #999; padding-bottom: 8px; margin-bottom: 8px;">
-          <p style="font-weight: bold; text-align: center; margin-bottom: 4px;">PARCELAS</p>
-          <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+        <div style="border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+          <p style="font-weight: 900; text-align: center; margin-bottom: 4px; font-size: 11px;">PARCELAS</p>
+          <table style="width: 100%; font-size: 10px; border-collapse: collapse; font-weight: bold; table-layout: fixed;">
             <thead>
-              <tr style="border-bottom: 1px solid #999;">
-                <th style="text-align: left;">Nº</th>
-                <th style="text-align: center;">Vencimento</th>
-                <th style="text-align: right;">Valor</th>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; width: 15%;">No</th>
+                <th style="text-align: center; width: 50%;">Vencimento</th>
+                <th style="text-align: right; width: 35%;">Valor</th>
               </tr>
             </thead>
             <tbody>
               ${parcelasInfo.map(p => `
-                <tr style="border-bottom: 1px solid #ddd;">
-                  <td>${p.numero}ª</td>
-                  <td style="text-align: center;">${formatarDataCurta(p.dataVencimento)}</td>
-                  <td style="text-align: right;">${formatarMoeda(p.valor)}</td>
+                <tr style="border-bottom: 1px solid #000;">
+                  <td style="font-weight: bold;">${p.numero}a</td>
+                  <td style="text-align: center; font-weight: bold;">${formatarDataCurta(p.dataVencimento)}</td>
+                  <td style="text-align: right; font-weight: bold;">${formatarMoeda(p.valor)}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -343,55 +363,96 @@ export default function PDVPage() {
           <meta charset="UTF-8">
           <title>Recibo - ${loja?.nome || "Loja"}</title>
           <style>
-            @page { size: 72mm auto; margin: 0; }
-            * { margin: 0; padding: 0; box-sizing: border-box; }
+            @page { 
+              size: 58mm auto; 
+              margin: 0mm; 
+            }
+            @media print {
+              html, body {
+                width: 58mm !important;
+                max-width: 58mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+            * { 
+              margin: 0; 
+              padding: 0; 
+              box-sizing: border-box; 
+            }
             body { 
-              font-family: 'Courier New', monospace; 
-              font-size: 11px; 
-              width: 72mm; 
-              padding: 2mm;
+              font-family: 'Courier New', Courier, monospace; 
+              font-size: 12px; 
+              font-weight: bold;
+              width: 58mm; 
+              max-width: 58mm;
+              padding: 1mm 2mm;
               background: white;
               color: black;
+              line-height: 1.3;
+              -webkit-font-smoothing: none;
             }
             .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .divider { border-bottom: 1px dashed #999; padding-bottom: 8px; margin-bottom: 8px; }
-            table { width: 100%; border-collapse: collapse; font-size: 10px; }
-            th, td { padding: 2px 0; }
+            .bold { font-weight: 900; }
+            .divider { 
+              border-bottom: 1px dashed #000; 
+              padding-bottom: 6px; 
+              margin-bottom: 6px; 
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              font-size: 11px; 
+              font-weight: bold;
+              table-layout: fixed;
+            }
+            th, td { 
+              padding: 2px 1px; 
+              word-wrap: break-word;
+              overflow: hidden;
+            }
+            p, span, td, th {
+              font-weight: bold;
+            }
+            h1 {
+              font-weight: 900;
+            }
           </style>
         </head>
         <body>
           <!-- Cabeçalho -->
           <div class="center divider">
-            <h1 style="font-size: 14px; font-weight: bold; text-transform: uppercase;">${loja?.nome || "Loja"}</h1>
+            <h1 style="font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px;">${loja?.nome || "Loja"}</h1>
             ${loja?.cnpj ? `<p style="font-size: 10px;">CNPJ: ${loja.cnpj}</p>` : ""}
             ${loja?.endereco ? `<p style="font-size: 10px;">${loja.endereco}</p>` : ""}
             ${loja?.telefone ? `<p style="font-size: 10px;">Tel: ${loja.telefone}</p>` : ""}
           </div>
 
           <!-- Título -->
-          <div class="center" style="margin-bottom: 8px;">
-            <p class="bold">CUPOM NÃO FISCAL</p>
-            ${vendaData.tipo === "aprazo" ? `<p style="font-size: 10px; background: #eee; padding: 2px 4px; display: inline-block;">VENDA A PRAZO</p>` : ""}
+          <div class="center" style="margin-bottom: 6px;">
+            <p class="bold" style="font-size: 12px;">CUPOM NAO FISCAL</p>
+            ${vendaData.tipo === "aprazo" ? `<p style="font-size: 10px; background: #ddd; padding: 2px 4px; display: inline-block;">VENDA A PRAZO</p>` : ""}
           </div>
 
           <!-- Data e Vendedor -->
-          <div class="divider">
-            <p><strong>Data:</strong> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
-            ${funcionario?.nome ? `<p><strong>Vendedor:</strong> ${funcionario.nome}</p>` : ""}
-            ${cliente?.nome ? `<p><strong>Cliente:</strong> ${cliente.nome}</p>` : ""}
+          <div class="divider" style="font-size: 11px;">
+            <p><span style="font-weight: 900;">Data:</span> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
+            ${funcionario?.nome ? `<p><span style="font-weight: 900;">Vendedor:</span> ${funcionario.nome}</p>` : ""}
+            ${cliente?.nome ? `<p><span style="font-weight: 900;">Cliente:</span> ${cliente.nome}</p>` : ""}
           </div>
 
           <!-- Itens -->
           <div class="divider">
-            <p class="bold center" style="margin-bottom: 4px;">ITENS</p>
+            <p class="bold center" style="margin-bottom: 4px; font-size: 12px;">ITENS</p>
             <table>
               <thead>
-                <tr style="border-bottom: 1px solid #999;">
-                  <th style="text-align: left;">Item</th>
-                  <th style="text-align: center;">Qtd</th>
-                  <th style="text-align: right;">Unit</th>
-                  <th style="text-align: right;">Total</th>
+                <tr style="border-bottom: 1px solid #000;">
+                  <th style="text-align: left; width: 40%;">Item</th>
+                  <th style="text-align: center; width: 12%;">Qtd</th>
+                  <th style="text-align: right; width: 24%;">Unit</th>
+                  <th style="text-align: right; width: 24%;">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -402,37 +463,37 @@ export default function PDVPage() {
 
           <!-- Totais -->
           <div class="divider">
-            <div style="display: flex; justify-content: space-between;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
               <span>Subtotal:</span>
               <span>${formatarMoeda(subtotalItens)}</span>
             </div>
             ${vendaData.desconto > 0 ? `
-              <div style="display: flex; justify-content: space-between;">
+              <div style="display: flex; justify-content: space-between; font-size: 11px;">
                 <span>Desconto:</span>
                 <span>- ${formatarMoeda(vendaData.desconto)}</span>
               </div>
             ` : ""}
-            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #999;">
+            <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 14px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #000;">
               <span>TOTAL:</span>
               <span>${formatarMoeda(vendaData.total)}</span>
             </div>
           </div>
 
           <!-- Forma de Pagamento -->
-          <div class="divider">
-            <p><strong>Forma Pgto:</strong> ${formaPagamentoLabel[vendaData.forma_pagamento] || vendaData.forma_pagamento}</p>
+          <div class="divider" style="font-size: 11px;">
+            <p><span style="font-weight: 900;">Forma Pgto:</span> ${formaPagamentoLabel[vendaData.forma_pagamento] || vendaData.forma_pagamento}</p>
           </div>
 
           <!-- Parcelas -->
           ${parcelasHtml}
 
           <!-- Rodapé -->
-          <div class="center" style="font-size: 9px; margin-top: 16px;">
-            <p>--------------------------------</p>
+          <div class="center" style="font-size: 10px; margin-top: 12px;">
+            <p>------------------------</p>
             <p>Obrigado pela preferencia!</p>
             <p>Volte sempre!</p>
-            <p>--------------------------------</p>
-            <p style="font-size: 8px; margin-top: 8px;">Documento sem valor fiscal</p>
+            <p>------------------------</p>
+            <p style="font-size: 9px; margin-top: 6px;">Documento sem valor fiscal</p>
           </div>
         </body>
         </html>
