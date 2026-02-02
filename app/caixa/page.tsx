@@ -20,6 +20,7 @@ import { Wallet, TrendingUp, TrendingDown, DollarSign, Calendar, Trash2, Shoppin
 interface VendaDetalhe {
   id: string
   clienteNome: string | null
+  vendedorNome: string | null
   desconto: number
   total: number
   formaPagamento: string
@@ -100,11 +101,15 @@ export default function CaixaPage() {
       console.log("Itens da venda:", data?.vendas_itens)
 
       if (data) {
+        // Buscar o nome do vendedor pelos funcionários já carregados
+        const vendedor = funcionarios.find(f => f.usuario_id === data.funcionario_id)
+
         setVendasDetalhes(prev => ({
           ...prev,
           [vendaId]: {
             id: data.id,
             clienteNome: data.clientes?.nome || null,
+            vendedorNome: vendedor?.nome || null,
             desconto: data.desconto || 0,
             total: data.total,
             formaPagamento: data.forma_pagamento,
@@ -126,7 +131,7 @@ export default function CaixaPage() {
     } finally {
       setLoadingVendas(prev => ({ ...prev, [vendaId]: false }))
     }
-  }, [vendasDetalhes, loadingVendas])
+  }, [vendasDetalhes, loadingVendas, funcionarios])
 
   // Função para excluir uma venda
   const handleExcluirVenda = async () => {
@@ -570,6 +575,12 @@ export default function CaixaPage() {
                                   {/* Informações da Venda */}
                                   <div className="rounded-lg bg-muted/50 p-3 space-y-2">
                                     <div className="flex flex-wrap items-center gap-3 text-sm">
+                                      {vendaDetalhe.vendedorNome && (
+                                        <span className="flex items-center gap-1">
+                                          <span className="text-muted-foreground">Vendedor:</span>
+                                          <span className="font-medium">{vendaDetalhe.vendedorNome}</span>
+                                        </span>
+                                      )}
                                       {vendaDetalhe.clienteNome && (
                                         <span className="flex items-center gap-1">
                                           <span className="text-muted-foreground">Cliente:</span>

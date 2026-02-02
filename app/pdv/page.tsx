@@ -684,6 +684,21 @@ export default function PDVPage() {
         return
       }
 
+      // Buscar o usuario_id do funcionário selecionado
+      const funcionarioSelecionado = funcionarios.find(f => f.id === vendaAtual.funcionarioId)
+      const funcionarioUsuarioId = funcionarioSelecionado?.usuario_id
+
+      if (!funcionarioUsuarioId) {
+        mostrarToast("⚠️ Erro ao identificar funcionário selecionado")
+        return
+      }
+
+      console.log("Funcionário selecionado:", {
+        funcionarioId: vendaAtual.funcionarioId,
+        funcionarioNome: funcionarioSelecionado?.nome,
+        funcionarioUsuarioId
+      })
+
       if (vendaAPrazo) {
         if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
           mostrarToast("⚠️ Selecione um cliente para venda a prazo!")
@@ -698,7 +713,7 @@ export default function PDVPage() {
         console.log("Tentando criar venda com dados:", {
           loja_id: lojaId,
           cliente_id: vendaAtual.clienteId,
-          funcionario_id: userId,
+          funcionario_id: funcionarioUsuarioId,
           desconto: vendaAtual.desconto || 0,
           total: totalRegistroVenda,
           forma_pagamento: formaPagamento,
@@ -711,7 +726,7 @@ export default function PDVPage() {
           .insert({
             loja_id: lojaId,
             cliente_id: vendaAtual.clienteId,
-            funcionario_id: userId,
+            funcionario_id: funcionarioUsuarioId,
             desconto: vendaAtual.desconto || 0,
             total: totalRegistroVenda,
             forma_pagamento: formaPagamento,
@@ -882,7 +897,7 @@ export default function PDVPage() {
         console.log("Tentando criar venda à vista com dados:", {
           loja_id: lojaId,
           cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
-          funcionario_id: userId,
+          funcionario_id: funcionarioUsuarioId,
           desconto: vendaAtual.desconto || 0,
           total: totalRegistroVenda,
           forma_pagamento: formaPagamento,
@@ -895,7 +910,7 @@ export default function PDVPage() {
           .insert({
             loja_id: lojaId,
             cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
-            funcionario_id: userId,
+            funcionario_id: funcionarioUsuarioId,
             desconto: vendaAtual.desconto || 0,
             total: totalRegistroVenda,
             forma_pagamento: formaPagamento,
@@ -998,7 +1013,7 @@ export default function PDVPage() {
             categoria: categoriaMap[formaPagamento] || "Venda",
             descricao: descricao,
             valor: total,
-            funcionario_id: userId,
+            funcionario_id: funcionarioUsuarioId,
             venda_id: vendaData.id,
           })
 

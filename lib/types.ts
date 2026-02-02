@@ -44,6 +44,7 @@ export type Cliente = {
 
 export type Funcionario = {
   id: string
+  usuario_id: string
   nome: string
   email: string
   telefone: string
