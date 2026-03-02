@@ -469,7 +469,7 @@ export default function ServicosPage() {
             if (!servicoSelecionado.pago && caixaAberto) {
                 const valorServico = servicoSelecionado.servico?.preco || 0
                 const vendaId = servicoSelecionado.venda_id
-                
+
                 const categoriaMap: Record<string, string> = {
                     dinheiro: "Serviço - Dinheiro",
                     pix: "Serviço - PIX",
@@ -478,7 +478,7 @@ export default function ServicosPage() {
                     outros: "Serviço - Outros",
                 }
 
-                const descricao = servicoSelecionado.cliente?.nome 
+                const descricao = servicoSelecionado.cliente?.nome
                     ? `Serviço: ${servicoSelecionado.servico?.nome} - Cliente: ${servicoSelecionado.cliente.nome}`
                     : `Serviço: ${servicoSelecionado.servico?.nome}`
 
@@ -753,7 +753,7 @@ export default function ServicosPage() {
         return (
             <div className="flex min-h-screen bg-background">
                 <Sidebar />
-                <main className="flex-1 lg:ml-64">
+                <main className="flex-1 overflow-hidden lg:ml-64">
                     <div className="flex h-screen items-center justify-center">
                         <p>Carregando serviços...</p>
                     </div>
@@ -766,7 +766,7 @@ export default function ServicosPage() {
         <div className="flex min-h-screen bg-background">
             <Sidebar />
 
-            <main className="flex-1 lg:ml-64">
+            <main className="flex-1 overflow-hidden lg:ml-64">
                 <PageHeader
                     title="Serviços"
                     subtitle="Gerencie os serviços realizados e em andamento"

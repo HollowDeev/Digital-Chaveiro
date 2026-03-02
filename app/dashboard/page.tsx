@@ -75,7 +75,7 @@ function DashboardContent() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
 
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 overflow-hidden lg:ml-64">
         <PageHeader
           title="Dashboard"
           subtitle="Visão geral do seu negócio"

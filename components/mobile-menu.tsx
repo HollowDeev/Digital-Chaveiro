@@ -17,7 +17,6 @@ import {
   UserCircle,
   Wallet,
   FileText,
-  Receipt,
   Menu,
   Sparkles,
   Settings,
@@ -25,7 +24,6 @@ import {
 } from "lucide-react"
 
 const navItems = [
-  { href: "/pdv", label: "PDV", icon: Receipt, funcionarioAcesso: true },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, funcionarioAcesso: false },
   { href: "/estoque", label: "Estoque", icon: Package, funcionarioAcesso: true },
   { href: "/servicos", label: "Serviços", icon: Wrench, funcionarioAcesso: true },

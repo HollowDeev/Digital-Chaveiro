@@ -9,6 +9,8 @@ interface Loja {
   cnpj: string | null
   endereco: string | null
   telefone: string | null
+  telefone_contato: string | null
+  qr_code_contato_url: string | null
   created_at: string
 }
 
@@ -49,14 +51,14 @@ export function LojaProvider({ children }: { children: ReactNode }) {
 
       // Filtrar lojas válidas (não nulas) e remover duplicatas
       const lojasAcesso = acessos?.map((a: any) => a.lojas).filter((l: any) => l !== null && l !== undefined) || []
-      
+
       // Combinar e remover duplicatas por ID
       const lojasMap = new Map<string, Loja>()
-      ;[...(lojasOwner || []), ...lojasAcesso].forEach((loja: Loja) => {
-        if (loja && loja.id) {
-          lojasMap.set(loja.id, loja)
-        }
-      })
+        ;[...(lojasOwner || []), ...lojasAcesso].forEach((loja: Loja) => {
+          if (loja && loja.id) {
+            lojasMap.set(loja.id, loja)
+          }
+        })
       const todasLojas = Array.from(lojasMap.values())
 
       setLojas(todasLojas)

@@ -25,6 +25,11 @@ export default async function Home() {
     redirect("/auth/criar-loja")
   }
 
-  // Tem loja, vai para o PDV
-  redirect("/pdv")
+  // Tem acesso ou é dono, vai para a página certa
+  console.log("Root Page redirect check: ", { user_id: user.id, isOwner: (lojasOwner && lojasOwner.length > 0) })
+  if (lojasOwner && lojasOwner.length > 0) {
+    redirect("/dashboard")
+  } else {
+    redirect("/pdv")
+  }
 }

@@ -788,10 +788,10 @@ function RelatoriosContent() {
 
               {/* Sub-tabs para Contas */}
               < Tabs defaultValue="pagar" className="w-full" >
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="pagar">Contas a Pagar</TabsTrigger>
-                  <TabsTrigger value="receber">Contas a Receber</TabsTrigger>
-                  <TabsTrigger value="perdas">Perdas</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-3 text-xs">
+                  <TabsTrigger value="pagar" className="text-xs">A Pagar</TabsTrigger>
+                  <TabsTrigger value="receber" className="text-xs">A Receber</TabsTrigger>
+                  <TabsTrigger value="perdas" className="text-xs">Perdas</TabsTrigger>
                 </TabsList>
 
                 {/* Contas a Pagar */}
@@ -867,7 +867,7 @@ function RelatoriosContent() {
                               onChange={(e) => setNovaContaPagar({ ...novaContaPagar, descricao: e.target.value })}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                               <Label htmlFor="conta-valor">Valor *</Label>
                               <Input
@@ -1001,7 +1001,7 @@ function RelatoriosContent() {
                               onChange={(e) => setNovaContaReceber({ ...novaContaReceber, descricao: e.target.value })}
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                               <Label htmlFor="receber-valor">Valor *</Label>
                               <Input
@@ -1217,7 +1217,7 @@ function RelatoriosContent() {
                               </p>
                             )}
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                               <Label htmlFor="perda-quantidade">Quantidade *</Label>
                               <Input

@@ -25,18 +25,27 @@ const PAGINAS_DONO = [
 ]
 
 export function usePermissoes() {
-  const { lojaAtual } = useLoja()
+  const { lojaAtual, loading: lojaLoading } = useLoja()
   const [nivelAcesso, setNivelAcesso] = useState<NivelAcesso>(null)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     const verificarPermissoes = async () => {
+      // Se a loja ainda está carregando, garante que permissões também continue carregando
+      if (lojaLoading) {
+        setLoading(true)
+        return
+      }
+
+      // Se a loja terminou de carregar e não existe lojaAtual, usuário sem permissões
       if (!lojaAtual) {
+        setNivelAcesso(null)
         setLoading(false)
         return
       }
 
+      setLoading(true) // Garante que fica em loading enquanto busca as permissões
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -57,6 +66,7 @@ export function usePermissoes() {
           .single()
 
         if (loja?.dono_id === user.id) {
+          console.log("usePermissoes: User is dono da loja")
           setNivelAcesso("dono")
           setLoading(false)
           return
@@ -71,8 +81,10 @@ export function usePermissoes() {
           .single()
 
         if (acesso) {
+          console.log("usePermissoes: User has acesso", acesso.nivel_acesso)
           setNivelAcesso(acesso.nivel_acesso as NivelAcesso)
         } else {
+          console.log("usePermissoes: User has no acesso set")
           setNivelAcesso(null)
         }
       } catch (error) {
@@ -84,10 +96,11 @@ export function usePermissoes() {
     }
 
     verificarPermissoes()
-  }, [lojaAtual])
+  }, [lojaAtual, lojaLoading])
 
   // Verifica se o usuário pode acessar uma determinada página
   const podeAcessar = (pagina: string): boolean => {
+    console.log(`podeAcessar called for ${pagina} with nivelAcesso=${nivelAcesso}`)
     if (!nivelAcesso) return false
     
     // Dono pode acessar tudo

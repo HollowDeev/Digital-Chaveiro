@@ -432,7 +432,7 @@ export default function CaixaPage() {
                 {caixaAtual && (
                   <div className="text-left lg:text-right">
                     <p className="text-xs text-muted-foreground lg:text-sm">Saldo Atual</p>
-                    <p className="text-3xl font-bold text-foreground lg:text-4xl">R$ {saldoCaixa.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-foreground lg:text-4xl">R$ {saldoCaixa.toFixed(2)}</p>
                   </div>
                 )}
               </div>
@@ -440,42 +440,42 @@ export default function CaixaPage() {
           </Card>
 
           {/* Resumo Financeiro */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-            <Card className="overflow-hidden">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <DollarSign className="h-4 w-4" />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-6">
+            <Card className="overflow-hidden col-span-2 lg:col-span-1">
+              <CardHeader className="pb-3 px-3 lg:px-6">
+                <CardTitle className="flex items-center gap-2 text-xs lg:text-sm font-medium text-muted-foreground">
+                  <DollarSign className="h-4 w-4 flex-shrink-0" />
                   Valor de Abertura
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-foreground">
+              <CardContent className="px-3 lg:px-6">
+                <div className="text-lg lg:text-2xl font-bold text-foreground">
                   R$ {caixaAtual?.valorAbertura.toFixed(2) || "0.00"}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="overflow-hidden border-accent/50 bg-accent/5">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-accent">
-                  <TrendingUp className="h-4 w-4" />
+              <CardHeader className="pb-3 px-3 lg:px-6">
+                <CardTitle className="flex items-center gap-2 text-xs lg:text-sm font-medium text-accent">
+                  <TrendingUp className="h-4 w-4 flex-shrink-0" />
                   Entradas
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-accent">R$ {entradasHoje.toFixed(2)}</div>
+              <CardContent className="px-3 lg:px-6">
+                <div className="text-lg lg:text-2xl font-bold text-accent">R$ {entradasHoje.toFixed(2)}</div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden border-destructive/50 bg-destructive/5 sm:col-span-2 lg:col-span-1">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <TrendingDown className="h-4 w-4" />
+            <Card className="overflow-hidden border-destructive/50 bg-destructive/5">
+              <CardHeader className="pb-3 px-3 lg:px-6">
+                <CardTitle className="flex items-center gap-2 text-xs lg:text-sm font-medium text-destructive">
+                  <TrendingDown className="h-4 w-4 flex-shrink-0" />
                   Saídas
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-destructive">R$ {saidasHoje.toFixed(2)}</div>
+              <CardContent className="px-3 lg:px-6">
+                <div className="text-lg lg:text-2xl font-bold text-destructive">R$ {saidasHoje.toFixed(2)}</div>
               </CardContent>
             </Card>
           </div>
@@ -512,8 +512,8 @@ export default function CaixaPage() {
                               }
                             }}
                           >
-                            <div className="flex flex-1 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between pr-4">
-                              <div className="flex items-start gap-3 lg:gap-4">
+                            <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-center lg:justify-between pr-2">
+                              <div className="flex w-full items-start gap-3 lg:gap-4 overflow-hidden">
                                 <div
                                   className={`rounded-lg p-2 lg:p-3 flex-shrink-0 ${movimentacao.tipo === "entrada"
                                     ? "bg-accent/10 text-accent"
@@ -529,12 +529,12 @@ export default function CaixaPage() {
 
                                 <div className="min-w-0 flex-1 text-left">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="text-sm font-medium lg:text-base break-words">{movimentacao.descricao}</h3>
-                                    <Badge variant="outline" className="text-xs capitalize flex-shrink-0">
+                                    <h3 className="text-sm font-medium lg:text-base truncate max-w-[200px] sm:max-w-[400px]" title={movimentacao.descricao}>{movimentacao.descricao}</h3>
+                                    <Badge variant="outline" className="text-[10px] lg:text-xs capitalize flex-shrink-0 px-1 py-0">
                                       {movimentacao.categoria}
                                     </Badge>
                                     {temVenda && (
-                                      <Badge variant="secondary" className="text-xs flex-shrink-0 gap-1">
+                                      <Badge variant="secondary" className="text-[10px] lg:text-xs flex-shrink-0 gap-1 px-1 py-0">
                                         <ShoppingCart className="h-3 w-3" />
                                         Venda
                                       </Badge>
@@ -554,9 +554,9 @@ export default function CaixaPage() {
                                 </div>
                               </div>
 
-                              <div className="text-left lg:text-right">
+                              <div className="text-left ml-11 lg:ml-0 lg:text-right mt-1 lg:mt-0">
                                 <p
-                                  className={`text-xl font-bold lg:text-2xl ${movimentacao.tipo === "entrada" ? "text-accent" : "text-destructive"}`}
+                                  className={`text-base font-bold sm:text-lg lg:text-xl ${movimentacao.tipo === "entrada" ? "text-accent" : "text-destructive"}`}
                                 >
                                   {movimentacao.tipo === "entrada" ? "+" : "-"} R$ {movimentacao.valor.toFixed(2)}
                                 </p>
@@ -600,13 +600,13 @@ export default function CaixaPage() {
                                   {/* Itens da Venda */}
                                   <div className="space-y-2">
                                     <h4 className="text-sm font-medium">Itens da Venda</h4>
-                                    <div className="rounded-lg border border-border overflow-hidden">
+                                    <div className="overflow-x-auto rounded-lg border border-border">
                                       <table className="w-full text-sm">
                                         <thead className="bg-muted/50">
                                           <tr>
                                             <th className="px-3 py-2 text-left font-medium">Item</th>
                                             <th className="px-3 py-2 text-center font-medium">Qtd</th>
-                                            <th className="px-3 py-2 text-right font-medium">Preço Un.</th>
+                                            <th className="px-3 py-2 text-right font-medium whitespace-nowrap">Preço Un.</th>
                                             <th className="px-3 py-2 text-right font-medium">Subtotal</th>
                                           </tr>
                                         </thead>
@@ -620,12 +620,12 @@ export default function CaixaPage() {
                                                   ) : (
                                                     <Wrench className="h-3 w-3 text-muted-foreground" />
                                                   )}
-                                                  <span>{item.nome}</span>
+                                                  <span className="whitespace-nowrap">{item.nome}</span>
                                                 </div>
                                               </td>
                                               <td className="px-3 py-2 text-center">{item.quantidade}</td>
-                                              <td className="px-3 py-2 text-right">R$ {item.precoUnitario.toFixed(2)}</td>
-                                              <td className="px-3 py-2 text-right font-medium">R$ {item.subtotal.toFixed(2)}</td>
+                                              <td className="px-3 py-2 text-right whitespace-nowrap">R$ {item.precoUnitario.toFixed(2)}</td>
+                                              <td className="px-3 py-2 text-right font-medium whitespace-nowrap">R$ {item.subtotal.toFixed(2)}</td>
                                             </tr>
                                           ))}
                                         </tbody>
@@ -633,12 +633,12 @@ export default function CaixaPage() {
                                           {vendaDetalhe.desconto > 0 && (
                                             <tr>
                                               <td colSpan={3} className="px-3 py-2 text-right text-muted-foreground">Desconto:</td>
-                                              <td className="px-3 py-2 text-right text-destructive">- R$ {vendaDetalhe.desconto.toFixed(2)}</td>
+                                              <td className="px-3 py-2 text-right text-destructive whitespace-nowrap">- R$ {vendaDetalhe.desconto.toFixed(2)}</td>
                                             </tr>
                                           )}
                                           <tr>
                                             <td colSpan={3} className="px-3 py-2 text-right font-medium">Total:</td>
-                                            <td className="px-3 py-2 text-right font-bold text-accent">R$ {vendaDetalhe.total.toFixed(2)}</td>
+                                            <td className="px-3 py-2 text-right font-bold text-accent whitespace-nowrap">R$ {vendaDetalhe.total.toFixed(2)}</td>
                                           </tr>
                                         </tfoot>
                                       </table>

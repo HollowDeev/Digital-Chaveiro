@@ -35,6 +35,12 @@ export default function ConfiguracaoPage() {
     const [codigos, setCodigos] = useState<any[]>([])
     const [novoCodigoHoras, setNovoCodigoHoras] = useState(24)
 
+    // QR Code de Contato
+    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
+    const [telefoneContato, setTelefoneContato] = useState("")
+    const [uploadingQr, setUploadingQr] = useState(false)
+    const [msgQr, setMsgQr] = useState("")
+
     useEffect(() => {
         loadConta()
         fetchStores()
@@ -102,6 +108,8 @@ export default function ConfiguracaoPage() {
         setNomeLoja(s.nome || "")
         setTelefoneLoja(s.telefone || "")
         setEmailLoja(s.email || "")
+        setQrCodeUrl(s.qr_code_contato_url || null)
+        setTelefoneContato(s.telefone_contato || "")
         fetchUsuarios(s.id)
         fetchCodigos(s.id)
     }
@@ -203,6 +211,72 @@ export default function ConfiguracaoPage() {
     function copiarCodigo(codigo: string) {
         navigator.clipboard.writeText(codigo)
         setMsgLoja("Código copiado!")
+    }
+
+    async function handleUploadQrCode(file: File) {
+        if (!selected) return
+        setUploadingQr(true)
+        setMsgQr("")
+        try {
+            const ext = file.name.split(".").pop()
+            const path = `${selected.id}/qr-contato.${ext}`
+            const { error: uploadError } = await supabase.storage
+                .from("loja-assets")
+                .upload(path, file, { upsert: true, contentType: file.type })
+            if (uploadError) throw uploadError
+
+            const { data: urlData } = supabase.storage.from("loja-assets").getPublicUrl(path)
+            const url = `${urlData.publicUrl}?t=${Date.now()}`
+
+            const { error: updateError } = await supabase
+                .from("lojas")
+                .update({ qr_code_contato_url: urlData.publicUrl })
+                .eq("id", selected.id)
+            if (updateError) throw updateError
+
+            setQrCodeUrl(url)
+            setMsgQr("QR Code salvo com sucesso!")
+            fetchStores()
+        } catch (err: any) {
+            setMsgQr(err.message || "Erro ao fazer upload")
+        } finally {
+            setUploadingQr(false)
+        }
+    }
+
+    async function handleSalvarTelefoneContato() {
+        if (!selected) return
+        setUploadingQr(true)
+        setMsgQr("")
+        try {
+            const { error } = await supabase
+                .from("lojas")
+                .update({ telefone_contato: telefoneContato || null })
+                .eq("id", selected.id)
+            if (error) throw error
+            setMsgQr("Telefone de contato salvo!")
+            fetchStores()
+        } catch (err: any) {
+            setMsgQr(err.message || "Erro")
+        } finally {
+            setUploadingQr(false)
+        }
+    }
+
+    async function handleRemoverQrCode() {
+        if (!selected) return
+        try {
+            const { error } = await supabase
+                .from("lojas")
+                .update({ qr_code_contato_url: null })
+                .eq("id", selected.id)
+            if (error) throw error
+            setQrCodeUrl(null)
+            setMsgQr("QR Code removido.")
+            fetchStores()
+        } catch (err: any) {
+            setMsgQr(err.message || "Erro")
+        }
     }
 
     return (
@@ -312,6 +386,99 @@ export default function ConfiguracaoPage() {
                                             </Button>
 
                                             {msgLoja && <div className="p-2 rounded bg-muted/30">{msgLoja}</div>}
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* QR Code de Contato */}
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2">
+                                                <span>QR Code de Contato</span>
+                                            </CardTitle>
+                                            <p className="text-sm text-muted-foreground">
+                                                Aparece no rodapé das notas impressas com a mensagem &ldquo;Teve algum problema? Entre em contato conosco!&rdquo;
+                                            </p>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            {/* Telefone de contato */}
+                                            <div>
+                                                <Label htmlFor="telefoneContato">Telefone / WhatsApp de Contato</Label>
+                                                <div className="flex gap-2 mt-1">
+                                                    <Input
+                                                        id="telefoneContato"
+                                                        placeholder="(00) 00000-0000"
+                                                        value={telefoneContato}
+                                                        onChange={(e) => setTelefoneContato(e.target.value)}
+                                                    />
+                                                    <Button onClick={handleSalvarTelefoneContato} disabled={uploadingQr} variant="outline">
+                                                        Salvar
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            {/* Upload QR Code */}
+                                            <div>
+                                                <Label>Imagem do QR Code</Label>
+                                                <div className="mt-2 flex items-start gap-4">
+                                                    {/* Preview */}
+                                                    {qrCodeUrl ? (
+                                                        <div className="relative shrink-0">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img
+                                                                src={qrCodeUrl}
+                                                                alt="QR Code de contato"
+                                                                className="w-20 h-20 object-contain border rounded-lg bg-white p-1"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-20 h-20 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground text-xs text-center shrink-0">
+                                                            Sem QR
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex flex-col gap-2 flex-1">
+                                                        <label
+                                                            htmlFor="qr-upload"
+                                                            className="flex items-center justify-center gap-2 cursor-pointer rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent/10 transition-colors"
+                                                        >
+                                                            {uploadingQr ? "Enviando..." : "Selecionar imagem"}
+                                                            <input
+                                                                id="qr-upload"
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                disabled={uploadingQr}
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0]
+                                                                    if (file) handleUploadQrCode(file)
+                                                                    e.target.value = ""
+                                                                }}
+                                                            />
+                                                        </label>
+                                                        {qrCodeUrl && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="text-destructive hover:text-destructive"
+                                                                onClick={handleRemoverQrCode}
+                                                                disabled={uploadingQr}
+                                                            >
+                                                                Remover QR Code
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground mt-2">
+                                                    Use PNG ou JPG. Recomendado: 200&times;200 px.
+                                                </p>
+                                            </div>
+
+                                            {msgQr && (
+                                                <div className={`p-2 rounded text-sm ${msgQr.includes("Erro") ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-600"
+                                                    }`}>
+                                                    {msgQr}
+                                                </div>
+                                            )}
                                         </CardContent>
                                     </Card>
 

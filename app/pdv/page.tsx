@@ -146,21 +146,16 @@ export default function PDVPage() {
     if (printWindow) {
       printWindow.document.write(html)
       printWindow.document.close()
-      printWindow.onload = () => {
-        printWindow.focus()
-        printWindow.print()
-        printWindow.onafterprint = () => {
-          printWindow.close()
-        }
-      }
+      // A impressão é disparada por um script dentro do próprio HTML
+      // para garantir que as imagens (QR Code) carreguem antes de imprimir.
     }
   }
 
   // Função para imprimir recibo diretamente
   const imprimirRecibo = useCallback((vendaData: any, itens: any[], parcelasInfo?: any[]) => {
     const loja = lojaAtual
-    const cliente = vendaAtual.clienteId && vendaAtual.clienteId !== "none" 
-      ? clientes.find(c => c.id === vendaAtual.clienteId) 
+    const cliente = vendaAtual.clienteId && vendaAtual.clienteId !== "none"
+      ? clientes.find(c => c.id === vendaAtual.clienteId)
       : null
     const funcionario = funcionarios.find(f => f.usuario_id === vendaData.funcionario_id)
 
@@ -170,7 +165,7 @@ export default function PDVPage() {
 
     const formaPagamentoLabel: Record<string, string> = {
       dinheiro: "Dinheiro",
-      cartao_credito: "Cartão Crédito", 
+      cartao_credito: "Cartão Crédito",
       cartao_debito: "Cartão Débito",
       pix: "PIX",
       outros: "Outros",
@@ -265,6 +260,14 @@ export default function PDVPage() {
             <p style="margin: 0;">------------------------</p>
             <p style="margin: 2px 0;">${via}</p>
           </div>
+
+          <!-- Contato QR Code -->
+          <div style="text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000;">
+            <p style="font-size: 9px; font-weight: 900; margin: 0;">Teve algum problema?</p>
+            <p style="font-size: 9px; font-weight: 900; margin: 2px 0;">Entre em contato conosco!</p>
+            ${loja?.qr_code_contato_url ? `<img src="${loja.qr_code_contato_url}" style="width: 60px; height: 60px; margin: 4px auto; display: block;" />` : `<p style="font-size: 8px;">[Imagem não enviada para o banco]</p>`}
+            ${(loja?.telefone_contato || loja?.telefone) ? `<p style="font-size: 9px; font-weight: bold; margin: 2px 0;">${loja?.telefone_contato || loja?.telefone}</p>` : ""}
+          </div>
         </div>
       `
 
@@ -311,6 +314,14 @@ export default function PDVPage() {
         <body>
           ${gerarViaOS("1a VIA - ESTABELECIMENTO")}
           ${gerarViaOS("2a VIA - CLIENTE")}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 500);
+            };
+          </script>
         </body>
         </html>
       `
@@ -495,6 +506,22 @@ export default function PDVPage() {
             <p>------------------------</p>
             <p style="font-size: 9px; margin-top: 6px;">Documento sem valor fiscal</p>
           </div>
+
+          <!-- Contato QR Code -->
+          <div class="center" style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000;">
+            <p style="font-size: 9px; font-weight: 900;">Teve algum problema?</p>
+            <p style="font-size: 9px; font-weight: 900; margin: 2px 0;">Entre em contato conosco!</p>
+            ${loja?.qr_code_contato_url ? `<img src="${loja.qr_code_contato_url}" style="width: 64px; height: 64px; margin: 4px auto; display: block;" />` : `<p style="font-size: 8px;">[Imagem não cadastrada no banco]</p>`}
+            ${(loja?.telefone_contato || loja?.telefone) ? `<p style="font-size: 9px; font-weight: bold; margin-top: 2px;">${loja?.telefone_contato || loja?.telefone}</p>` : ""}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 500);
+            };
+          </script>
         </body>
         </html>
       `

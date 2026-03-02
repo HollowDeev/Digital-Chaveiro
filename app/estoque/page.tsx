@@ -137,12 +137,12 @@ export default function GestaoInventarioPage() {
   // CRUD Produto
   const handleCriarProduto = async () => {
     console.log("handleCriarProduto - lojaId:", lojaId, "nome:", novoProduto.nome, "codigo:", novoProduto.codigo)
-    
+
     if (!lojaId) {
       mostrarToast("⚠️ Erro: Loja não identificada. Recarregue a página.")
       return
     }
-    
+
     if (!novoProduto.nome || !novoProduto.codigo) {
       mostrarToast("⚠️ Preencha os campos obrigatórios (nome e código)")
       return
@@ -534,7 +534,7 @@ export default function GestaoInventarioPage() {
         </div>
       )}
 
-      <main className="flex-1 lg:ml-64">
+      <main className="flex-1 overflow-hidden lg:ml-64">
         <PageHeader
           title="Gestão de Inventário"
           subtitle="Controle completo de produtos, serviços e movimentações"
@@ -543,7 +543,7 @@ export default function GestaoInventarioPage() {
 
         <div className="space-y-4 p-4 lg:space-y-6 lg:p-8">
           {/* Cards de Métricas */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs text-muted-foreground">Produtos</CardTitle>
@@ -626,7 +626,7 @@ export default function GestaoInventarioPage() {
                     <DialogTitle>Adicionar Novo Produto</DialogTitle>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="nome-produto">Nome *</Label>
                         <Input
@@ -647,7 +647,7 @@ export default function GestaoInventarioPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="categoria-produto">Categoria</Label>
                         <Input
@@ -669,7 +669,7 @@ export default function GestaoInventarioPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="custo-produto">Custo Unitário (R$)</Label>
                         <Input
@@ -799,7 +799,7 @@ export default function GestaoInventarioPage() {
                     <DialogTitle>Adicionar Novo Serviço</DialogTitle>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="nome-servico">Nome *</Label>
                         <Input
@@ -820,7 +820,7 @@ export default function GestaoInventarioPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="categoria-servico">Categoria</Label>
                         <Input
@@ -994,7 +994,7 @@ export default function GestaoInventarioPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="valor-pago">Valor Pago (R$)</Label>
                         <Input

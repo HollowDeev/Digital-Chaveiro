@@ -21,12 +21,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   useEffect(() => {
     if (isLoading) return
 
+    console.log("ProtectedRoute check:", { pathname, isLoading, podeAcessar: pathname ? podeAcessar(pathname) : false, nivelAcesso })
+
     // Se não tem permissão para acessar a página atual
     if (pathname && !podeAcessar(pathname)) {
+      console.log("ProtectedRoute redirecting to /pdv due to missing access.")
       // Redireciona para o PDV (página padrão para funcionários)
       router.push("/pdv")
     }
-  }, [isLoading, pathname, podeAcessar, router])
+  }, [isLoading, pathname, podeAcessar, router, nivelAcesso])
 
   // Mostra loading enquanto verifica permissões
   if (isLoading) {
@@ -50,7 +53,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           </div>
           <h2 className="text-xl font-bold text-foreground">Acesso Restrito</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Você não tem permissão para acessar esta página. 
+            Você não tem permissão para acessar esta página.
             Entre em contato com o administrador se precisar de acesso.
           </p>
           <button
