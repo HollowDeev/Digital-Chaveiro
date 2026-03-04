@@ -367,6 +367,93 @@ export default function PDVPage() {
         </div>
       ` : ""
 
+      const gerarViaCupom = (via: string) => `
+        <div style="page-break-after: always; padding-bottom: 8mm;">
+          <!-- Cabeçalho -->
+          <div class="center divider">
+            <h1 style="font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px;">${loja?.nome || "Loja"}</h1>
+            ${loja?.cnpj ? `<p style="font-size: 10px;">CNPJ: ${loja.cnpj}</p>` : ""}
+            ${loja?.endereco ? `<p style="font-size: 10px;">${loja.endereco}</p>` : ""}
+            ${loja?.telefone ? `<p style="font-size: 10px;">Tel: ${loja.telefone}</p>` : ""}
+          </div>
+
+          <!-- Título -->
+          <div class="center" style="margin-bottom: 6px;">
+            <p class="bold" style="font-size: 12px;">CUPOM NAO FISCAL</p>
+            <p style="font-size: 10px; font-weight: bold; margin-top: 2px;">${via}</p>
+            ${vendaData.tipo === "aprazo" ? `<p style="font-size: 10px; background: #ddd; padding: 2px 4px; display: inline-block;">VENDA A PRAZO</p>` : ""}
+          </div>
+
+          <!-- Data e Vendedor -->
+          <div class="divider" style="font-size: 11px;">
+            <p><span style="font-weight: 900;">Data:</span> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
+            ${funcionario?.nome ? `<p><span style="font-weight: 900;">Vendedor:</span> ${funcionario.nome}</p>` : ""}
+            ${cliente?.nome ? `<p><span style="font-weight: 900;">Cliente:</span> ${cliente.nome}</p>` : ""}
+          </div>
+
+          <!-- Itens -->
+          <div class="divider">
+            <p class="bold center" style="margin-bottom: 4px; font-size: 12px;">ITENS</p>
+            <table>
+              <thead>
+                <tr style="border-bottom: 1px solid #000;">
+                  <th style="text-align: left; width: 40%;">Item</th>
+                  <th style="text-align: center; width: 12%;">Qtd</th>
+                  <th style="text-align: right; width: 24%;">Unit</th>
+                  <th style="text-align: right; width: 24%;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itensHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Totais -->
+          <div class="divider">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <span>Subtotal:</span>
+              <span>${formatarMoeda(subtotalItens)}</span>
+            </div>
+            ${vendaData.desconto > 0 ? `
+              <div style="display: flex; justify-content: space-between; font-size: 11px;">
+                <span>Desconto:</span>
+                <span>- ${formatarMoeda(vendaData.desconto)}</span>
+              </div>
+` : ""}
+            <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 14px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #000;">
+              <span>TOTAL:</span>
+              <span>${formatarMoeda(vendaData.total)}</span>
+            </div>
+          </div>
+
+          <!-- Forma de Pagamento -->
+          <div class="divider" style="font-size: 11px;">
+            <p><span style="font-weight: 900;">Forma Pgto:</span> ${formaPagamentoLabel[vendaData.forma_pagamento] || vendaData.forma_pagamento}</p>
+          </div>
+
+          <!-- Parcelas -->
+          ${parcelasHtml}
+
+          <!-- Rodapé -->
+          <div class="center" style="font-size: 10px; margin-top: 12px;">
+            <p>------------------------</p>
+            <p>Obrigado pela preferencia!</p>
+            <p>Volte sempre!</p>
+            <p>------------------------</p>
+            <p style="font-size: 9px; margin-top: 6px;">Documento sem valor fiscal</p>
+          </div>
+
+          <!-- Contato QR Code -->
+          <div class="center" style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000;">
+            <p style="font-size: 9px; font-weight: 900;">Teve algum problema?</p>
+            <p style="font-size: 9px; font-weight: 900; margin: 2px 0;">Entre em contato conosco!</p>
+            ${loja?.qr_code_contato_url ? `<img src="${loja.qr_code_contato_url}" style="width: 64px; height: 64px; margin: 4px auto; display: block;" />` : `<p style="font-size: 8px;">[Imagem não cadastrada no banco]</p>`}
+            ${(loja?.telefone_contato || loja?.telefone) ? `<p style="font-size: 9px; font-weight: bold; margin-top: 2px;">${loja?.telefone_contato || loja?.telefone}</p>` : ""}
+          </div>
+        </div>
+      `
+
       return `
         <!DOCTYPE html>
         <html>
@@ -433,87 +520,8 @@ export default function PDVPage() {
           </style>
         </head>
         <body>
-          <!-- Cabeçalho -->
-          <div class="center divider">
-            <h1 style="font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px;">${loja?.nome || "Loja"}</h1>
-            ${loja?.cnpj ? `<p style="font-size: 10px;">CNPJ: ${loja.cnpj}</p>` : ""}
-            ${loja?.endereco ? `<p style="font-size: 10px;">${loja.endereco}</p>` : ""}
-            ${loja?.telefone ? `<p style="font-size: 10px;">Tel: ${loja.telefone}</p>` : ""}
-          </div>
-
-          <!-- Título -->
-          <div class="center" style="margin-bottom: 6px;">
-            <p class="bold" style="font-size: 12px;">CUPOM NAO FISCAL</p>
-            ${vendaData.tipo === "aprazo" ? `<p style="font-size: 10px; background: #ddd; padding: 2px 4px; display: inline-block;">VENDA A PRAZO</p>` : ""}
-          </div>
-
-          <!-- Data e Vendedor -->
-          <div class="divider" style="font-size: 11px;">
-            <p><span style="font-weight: 900;">Data:</span> ${formatarData(vendaData.created_at || new Date().toISOString())}</p>
-            ${funcionario?.nome ? `<p><span style="font-weight: 900;">Vendedor:</span> ${funcionario.nome}</p>` : ""}
-            ${cliente?.nome ? `<p><span style="font-weight: 900;">Cliente:</span> ${cliente.nome}</p>` : ""}
-          </div>
-
-          <!-- Itens -->
-          <div class="divider">
-            <p class="bold center" style="margin-bottom: 4px; font-size: 12px;">ITENS</p>
-            <table>
-              <thead>
-                <tr style="border-bottom: 1px solid #000;">
-                  <th style="text-align: left; width: 40%;">Item</th>
-                  <th style="text-align: center; width: 12%;">Qtd</th>
-                  <th style="text-align: right; width: 24%;">Unit</th>
-                  <th style="text-align: right; width: 24%;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${itensHtml}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Totais -->
-          <div class="divider">
-            <div style="display: flex; justify-content: space-between; font-size: 11px;">
-              <span>Subtotal:</span>
-              <span>${formatarMoeda(subtotalItens)}</span>
-            </div>
-            ${vendaData.desconto > 0 ? `
-              <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                <span>Desconto:</span>
-                <span>- ${formatarMoeda(vendaData.desconto)}</span>
-              </div>
-            ` : ""}
-            <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 14px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #000;">
-              <span>TOTAL:</span>
-              <span>${formatarMoeda(vendaData.total)}</span>
-            </div>
-          </div>
-
-          <!-- Forma de Pagamento -->
-          <div class="divider" style="font-size: 11px;">
-            <p><span style="font-weight: 900;">Forma Pgto:</span> ${formaPagamentoLabel[vendaData.forma_pagamento] || vendaData.forma_pagamento}</p>
-          </div>
-
-          <!-- Parcelas -->
-          ${parcelasHtml}
-
-          <!-- Rodapé -->
-          <div class="center" style="font-size: 10px; margin-top: 12px;">
-            <p>------------------------</p>
-            <p>Obrigado pela preferencia!</p>
-            <p>Volte sempre!</p>
-            <p>------------------------</p>
-            <p style="font-size: 9px; margin-top: 6px;">Documento sem valor fiscal</p>
-          </div>
-
-          <!-- Contato QR Code -->
-          <div class="center" style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000;">
-            <p style="font-size: 9px; font-weight: 900;">Teve algum problema?</p>
-            <p style="font-size: 9px; font-weight: 900; margin: 2px 0;">Entre em contato conosco!</p>
-            ${loja?.qr_code_contato_url ? `<img src="${loja.qr_code_contato_url}" style="width: 64px; height: 64px; margin: 4px auto; display: block;" />` : `<p style="font-size: 8px;">[Imagem não cadastrada no banco]</p>`}
-            ${(loja?.telefone_contato || loja?.telefone) ? `<p style="font-size: 9px; font-weight: bold; margin-top: 2px;">${loja?.telefone_contato || loja?.telefone}</p>` : ""}
-          </div>
+          ${gerarViaCupom("1a VIA - ESTABELECIMENTO")}
+          ${gerarViaCupom("2a VIA - CLIENTE")}
           <script>
             window.onload = function() {
               setTimeout(function() {
@@ -1973,7 +1981,7 @@ export default function PDVPage() {
                   setNovaPerda({ ...novaPerda, produtoId: v, valor: novoValor })
                 }}>
                   <SelectTrigger>
-                    <SelectValue placeholder={`Selecione o ${novaPerda.tipo}`} />
+                    <SelectValue placeholder={`Selecione o ${novaPerda.tipo} `} />
                   </SelectTrigger>
                   <SelectContent>
                     {novaPerda.tipo === 'produto' ? (
@@ -2013,10 +2021,10 @@ export default function PDVPage() {
                         }
                       }
                     }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'custo'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                    className={`px - 3 py - 1 rounded text - sm font - medium transition - colors ${perdaTipoValor === 'custo'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                      } `}
                   >
                     Custo
                   </button>
@@ -2033,10 +2041,10 @@ export default function PDVPage() {
                         }
                       }
                     }}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${perdaTipoValor === 'preco'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                      }`}
+                    className={`px - 3 py - 1 rounded text - sm font - medium transition - colors ${perdaTipoValor === 'preco'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                      } `}
                   >
                     Valor Final
                   </button>
