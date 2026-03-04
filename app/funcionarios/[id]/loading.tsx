@@ -7,7 +7,7 @@ export default function Loading() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
 
-      <main className="flex-1 ml-0 lg:ml-64">
+      <main className="flex-1 ml-0 md:ml-64">
         <div className="border-b border-border p-4 lg:p-8">
           <div className="flex items-center justify-between">
             <div className="space-y-2">

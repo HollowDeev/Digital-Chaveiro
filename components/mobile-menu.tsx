@@ -21,9 +21,11 @@ import {
   Sparkles,
   Settings,
   TrendingUp,
+  Receipt,
 } from "lucide-react"
 
 const navItems = [
+  { href: "/pdv", label: "PDV", icon: Receipt, funcionarioAcesso: true },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, funcionarioAcesso: false },
   { href: "/estoque", label: "Estoque", icon: Package, funcionarioAcesso: true },
   { href: "/servicos", label: "Serviços", icon: Wrench, funcionarioAcesso: true },
@@ -51,7 +53,7 @@ export function MobileMenu() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative overflow-hidden rounded-xl lg:hidden">
+        <Button variant="ghost" size="icon" className="relative overflow-hidden rounded-xl md:hidden">
           <Menu className="h-6 w-6" />
           <span className="sr-only">Abrir menu</span>
         </Button>

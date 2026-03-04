@@ -47,7 +47,7 @@ export function Sidebar() {
   })
 
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-sidebar-border bg-sidebar lg:block">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-sidebar-border bg-sidebar md:block">
       <div className="flex h-full flex-col">
         <div className="relative border-b border-sidebar-border bg-gradient-to-br from-primary/5 to-accent/5 px-6 py-6">
           <div className="flex items-center gap-3">

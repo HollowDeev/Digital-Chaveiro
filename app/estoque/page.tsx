@@ -534,7 +534,7 @@ export default function GestaoInventarioPage() {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden lg:ml-64">
+      <main className="flex-1 overflow-hidden md:ml-64">
         <PageHeader
           title="Gestão de Inventário"
           subtitle="Controle completo de produtos, serviços e movimentações"

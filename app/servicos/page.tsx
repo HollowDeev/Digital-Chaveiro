@@ -753,7 +753,7 @@ export default function ServicosPage() {
         return (
             <div className="flex min-h-screen bg-background">
                 <Sidebar />
-                <main className="flex-1 overflow-hidden lg:ml-64">
+                <main className="flex-1 overflow-hidden md:ml-64">
                     <div className="flex h-screen items-center justify-center">
                         <p>Carregando serviços...</p>
                     </div>
@@ -766,7 +766,7 @@ export default function ServicosPage() {
         <div className="flex min-h-screen bg-background">
             <Sidebar />
 
-            <main className="flex-1 overflow-hidden lg:ml-64">
+            <main className="flex-1 overflow-hidden md:ml-64">
                 <PageHeader
                     title="Serviços"
                     subtitle="Gerencie os serviços realizados e em andamento"
