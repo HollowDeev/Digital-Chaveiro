@@ -87,6 +87,10 @@ export default function PDVPage() {
   const [numeroParcelas, setNumeroParcelas] = useState(1)
   const [dataVencimento, setDataVencimento] = useState("")
   const [pagarServicoDepois, setPagarServicoDepois] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Mutex para evitar cadastro de vendas duplicadas (ref não causa re-render)
+  const isProcessingVenda = useRef(false)
 
   // Modal de Perda
   const [dialogNovaPerda, setDialogNovaPerda] = useState(false)
@@ -739,9 +743,11 @@ export default function PDVPage() {
   }
 
   const handleFinalizarVenda = async () => {
-    console.log("=== DEBUG INICIAL handleFinalizarVenda ===")
-    console.log("userId do state:", userId)
-    console.log("lojaId:", lojaId)
+    // Proteção contra duplo-clique / chamadas simultâneas
+    if (isProcessingVenda.current) {
+      console.warn("Venda já está sendo processada, ignorando chamada duplicada")
+      return
+    }
 
     if (!vendaAtual.funcionarioId) {
       mostrarToast("⚠️ Selecione o vendedor!")
@@ -753,31 +759,18 @@ export default function PDVPage() {
       return
     }
 
+    // Adquirir lock + fechar dialog imediatamente para evitar segundo clique
+    isProcessingVenda.current = true
+    setIsSubmitting(true)
+    setDialogPagamento(false)
+
     try {
       const supabase = createClient()
 
-      console.log("Iniciando finalização de venda...", {
-        lojaId,
-        userId,
-        vendaAPrazo,
-        totalItens: vendaAtual.itens.length,
-        total
-      })
-
-      console.log("VERIFICAÇÃO CRÍTICA:", {
-        lojaIdDefinido: !!lojaId,
-        userIdDefinido: !!userId,
-        lojaIdValor: lojaId,
-        userIdValor: userId,
-      })
-
-      // Buscar user diretamente para confirmar
+      // Confirmar autenticação
       const { data: { user: authUser } } = await supabase.auth.getUser()
-      console.log("User autenticado no Supabase:", authUser?.id, authUser?.email)
-
       if (!authUser) {
-        mostrarToast("⚠️ Usuário não autenticado!")
-        return
+        throw new Error("Usuário não autenticado!")
       }
 
       // Buscar o usuario_id do funcionário selecionado
@@ -785,38 +778,18 @@ export default function PDVPage() {
       const funcionarioUsuarioId = funcionarioSelecionado?.usuario_id
 
       if (!funcionarioUsuarioId) {
-        mostrarToast("⚠️ Erro ao identificar funcionário selecionado")
-        return
+        throw new Error("Erro ao identificar funcionário selecionado")
       }
-
-      console.log("Funcionário selecionado:", {
-        funcionarioId: vendaAtual.funcionarioId,
-        funcionarioNome: funcionarioSelecionado?.nome,
-        funcionarioUsuarioId
-      })
 
       if (vendaAPrazo) {
         if (!vendaAtual.clienteId || vendaAtual.clienteId === "none") {
-          mostrarToast("⚠️ Selecione um cliente para venda a prazo!")
-          return
+          throw new Error("Selecione um cliente para venda a prazo!")
         }
         if (!dataVencimento) {
-          mostrarToast("⚠️ Defina a data de vencimento!")
-          return
+          throw new Error("Defina a data de vencimento!")
         }
 
         // 1. SALVAR VENDA A PRAZO NO BANCO
-        console.log("Tentando criar venda com dados:", {
-          loja_id: lojaId,
-          cliente_id: vendaAtual.clienteId,
-          funcionario_id: funcionarioUsuarioId,
-          desconto: vendaAtual.desconto || 0,
-          total: totalRegistroVenda,
-          forma_pagamento: formaPagamento,
-          tipo: "aprazo",
-          status: "pendente",
-        })
-
         const { data: vendaData, error: vendaError } = await supabase
           .from("vendas")
           .insert({
@@ -832,18 +805,9 @@ export default function PDVPage() {
           .select()
           .single()
 
-        console.log("Resultado da criação da venda:", { vendaData, vendaError })
-
-        if (vendaError) {
-          console.error("Erro ao criar venda:", vendaError)
-          throw vendaError
-        }
-
-        console.log("Venda criada com sucesso! ID:", vendaData.id)
+        if (vendaError) throw vendaError
 
         // 2. SALVAR ITENS DA VENDA
-        console.log("Salvando itens da venda:", vendaAtual.itens.length, "itens")
-
         const itensVenda = vendaAtual.itens.map((item) => ({
           venda_id: vendaData.id,
           tipo: item.tipo,
@@ -854,33 +818,18 @@ export default function PDVPage() {
           subtotal: item.subtotal,
         }))
 
-        console.log("Itens preparados para inserção:", itensVenda)
-
         const { error: itensError } = await supabase.from("vendas_itens").insert(itensVenda)
-
-        if (itensError) {
-          console.error("Erro ao inserir itens da venda:", itensError)
-          throw itensError
-        }
-
-        console.log("Itens da venda salvos com sucesso")
+        if (itensError) throw itensError
 
         // 3. CRIAR SERVIÇOS REALIZADOS (apenas para serviços)
-        const servicosParaCriar = vendaAtual.itens.filter(item => item.tipo === "servico")
-        console.log("Criando serviços realizados:", servicosParaCriar.length, "serviços")
-
         for (const item of vendaAtual.itens) {
           if (item.tipo === "servico") {
-            // Buscar duração estimada do serviço
             const servico = servicos.find((s) => s.id === item.id)
             let dataPrevista = null
-
             if (servico?.duracaoEstimada) {
-              const minutosEstimados = servico.duracaoEstimada
-              dataPrevista = new Date(Date.now() + minutosEstimados * 60 * 1000).toISOString()
+              dataPrevista = new Date(Date.now() + servico.duracaoEstimada * 60 * 1000).toISOString()
             }
-
-            const servicoRealizadoData = {
+            const { error: servicoError } = await supabase.from("servicos_realizados").insert({
               loja_id: lojaId,
               venda_id: vendaData.id,
               servico_id: item.id,
@@ -889,18 +838,8 @@ export default function PDVPage() {
               data_inicio: new Date().toISOString(),
               data_prevista_conclusao: dataPrevista,
               pago: !pagarServicoDepois,
-            }
-
-            console.log("Criando serviço realizado:", servicoRealizadoData)
-
-            const { error: servicoError } = await supabase.from("servicos_realizados").insert(servicoRealizadoData)
-
-            if (servicoError) {
-              console.error("Erro ao criar serviço realizado:", servicoError)
-              throw servicoError
-            }
-
-            console.log("Serviço realizado criado com sucesso para item:", item.nome)
+            })
+            if (servicoError) throw servicoError
           }
         }
 
@@ -971,7 +910,6 @@ export default function PDVPage() {
         }))
 
         limparVenda()
-        setDialogPagamento(false)
         setVendaAPrazo(false)
         setNumeroParcelas(1)
         setPagarServicoDepois(true)
@@ -987,20 +925,8 @@ export default function PDVPage() {
         }
       } else {
         // VENDA À VISTA
-        console.log("=== VENDA À VISTA ===")
 
         // 1. SALVAR VENDA NO BANCO
-        console.log("Tentando criar venda à vista com dados:", {
-          loja_id: lojaId,
-          cliente_id: vendaAtual.clienteId && vendaAtual.clienteId !== "none" ? vendaAtual.clienteId : null,
-          funcionario_id: funcionarioUsuarioId,
-          desconto: vendaAtual.desconto || 0,
-          total: totalRegistroVenda,
-          forma_pagamento: formaPagamento,
-          tipo: "avista",
-          status: "concluida",
-        })
-
         const { data: vendaData, error: vendaError } = await supabase
           .from("vendas")
           .insert({
@@ -1016,23 +942,9 @@ export default function PDVPage() {
           .select()
           .single()
 
-        console.log("Resultado da criação da venda à vista:", { vendaData, vendaError })
-
-        if (vendaError) {
-          console.error("Erro ao criar venda à vista:", vendaError)
-          console.error("Mensagem de erro detalhada:", {
-            message: vendaError.message,
-            details: vendaError.details,
-            hint: vendaError.hint,
-            code: vendaError.code,
-          })
-          throw vendaError
-        }
-
-        console.log("Venda à vista criada com sucesso! ID:", vendaData.id)
+        if (vendaError) throw vendaError
 
         // 2. SALVAR ITENS DA VENDA
-        console.log("Salvando itens da venda à vista:", vendaAtual.itens.length, "itens")
         const itensVenda = vendaAtual.itens.map((item) => ({
           venda_id: vendaData.id,
           tipo: item.tipo,
@@ -1122,7 +1034,6 @@ export default function PDVPage() {
         // Manter no Zustand para compatibilidade
         finalizarVenda(formaPagamento)
         limparVenda()
-        setDialogPagamento(false)
         setFormaPagamento("dinheiro")
         setValorRecebido("")
         setPagarServicoDepois(true)
@@ -1146,29 +1057,19 @@ export default function PDVPage() {
       }
     } catch (err: any) {
       console.error("Erro ao finalizar venda:", err)
-      console.error("Detalhes do erro:", {
-        message: err?.message,
-        code: err?.code,
-        details: err?.details,
-        hint: err?.hint,
-        stack: err?.stack
-      })
 
       let mensagemErro = "Erro desconhecido"
+      if (err?.message) mensagemErro = err.message
+      if (err?.code === "23503") mensagemErro = "Erro de chave estrangeira - verifique dados"
+      if (err?.code === "23505") mensagemErro = "Registro duplicado"
 
-      if (err?.message) {
-        mensagemErro = err.message
-      }
-
-      if (err?.code === "23503") {
-        mensagemErro = "Erro de chave estrangeira - verifique se todos os dados estão corretos"
-      }
-
-      if (err?.code === "23505") {
-        mensagemErro = "Registro duplicado"
-      }
-
+      // Reabrir dialog em caso de erro para o usuário tentar novamente
+      setDialogPagamento(true)
       mostrarToast("❌ Erro ao finalizar venda: " + mensagemErro)
+    } finally {
+      // Sempre liberar o lock ao terminar (sucesso ou erro)
+      isProcessingVenda.current = false
+      setIsSubmitting(false)
     }
   }
 
@@ -1926,11 +1827,18 @@ export default function PDVPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogPagamento(false)}>
+            <Button variant="outline" onClick={() => setDialogPagamento(false)} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button onClick={handleFinalizarVenda}>
-              Confirmar Pagamento
+            <Button onClick={handleFinalizarVenda} disabled={isSubmitting} className="gap-2">
+              {isSubmitting ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Processando...
+                </>
+              ) : (
+                "Confirmar Pagamento"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
