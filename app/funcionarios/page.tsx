@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLoja } from "@/lib/contexts/loja-context"
 import { useData } from "@/lib/contexts/data-context"
 import { ProtectedRoute } from "@/components/protected-route"
-import { UserCircle, Search, Mail, Phone, Eye, Plus } from "lucide-react"
+import { UserCircle, Search, Mail, Phone, Eye, Plus, Key, AlertTriangle } from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
 
@@ -45,6 +45,12 @@ function FuncionariosContent() {
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [toastType, setToastType] = useState<"success" | "error">("success")
+
+  // Estados de Alterar Senha
+  const [dialogAlterarSenha, setDialogAlterarSenha] = useState(false)
+  const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<any>(null)
+  const [novaSenhaFuncionario, setNovaSenhaFuncionario] = useState("")
+  const [alterandoSenha, setAlterandoSenha] = useState(false)
 
   // Toast
   const mostrarToast = (mensagem: string, tipo: "success" | "error" = "success") => {
@@ -93,6 +99,55 @@ function FuncionariosContent() {
       mostrarToast(err.message || "Erro ao adicionar funcionário", "error")
     } finally {
       setSalvando(false)
+    }
+  }
+
+  // Função para abrir modal de alterar senha
+  const handleAbrirAlterarSenha = (funcionario: any) => {
+    setFuncionarioSelecionado(funcionario)
+    setNovaSenhaFuncionario("")
+    setDialogAlterarSenha(true)
+  }
+
+  // Função para salvar nova senha
+  const handleSalvarNovaSenha = async () => {
+    if (!lojaId || !funcionarioSelecionado || !novaSenhaFuncionario) {
+      mostrarToast("Preencha a nova senha", "error")
+      return
+    }
+
+    if (novaSenhaFuncionario.length < 6) {
+      mostrarToast("A senha deve ter pelo menos 6 caracteres", "error")
+      return
+    }
+
+    setAlterandoSenha(true)
+    try {
+      const res = await fetch("/api/lojas/update-employee-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lojaId,
+          usuarioId: funcionarioSelecionado.usuario_id,
+          newPassword: novaSenhaFuncionario
+        })
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        throw new Error(result.message || "Erro ao alterar senha")
+      }
+
+      mostrarToast("Senha alterada com sucesso!")
+      setDialogAlterarSenha(false)
+      setFuncionarioSelecionado(null)
+      setNovaSenhaFuncionario("")
+    } catch (err: any) {
+      console.error("Erro:", err)
+      mostrarToast(err.message || "Erro ao alterar senha", "error")
+    } finally {
+      setAlterandoSenha(false)
     }
   }
 
@@ -217,22 +272,30 @@ function FuncionariosContent() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-3 lg:gap-4">
-                        <div className="text-left lg:text-right">
-                          <p className="text-xs text-muted-foreground lg:text-sm">Salário</p>
-                          <p className="text-lg font-bold text-foreground lg:text-xl">
+                      <div className="mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border/50 pt-3 lg:mt-0 lg:border-t-0 lg:pt-0">
+                        <div className="text-left lg:text-right rounded-lg bg-muted/20 p-2.5 sm:bg-transparent sm:p-0">
+                          <p className="text-xs text-muted-foreground lg:text-sm">Salário Base</p>
+                          <p className="text-xl font-bold text-foreground lg:text-xl">
                             R$ {funcionario.salario.toFixed(2)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             Desde {new Date(funcionario.dataAdmissao).toLocaleDateString("pt-BR")}
                           </p>
                         </div>
-                        <Link href={`/funcionarios/${funcionario.id}`}>
-                          <Button variant="outline" size="sm">
-                            <Eye className="mr-2 h-4 w-4" />
-                            Ver Histórico
-                          </Button>
-                        </Link>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                          <Link href={`/funcionarios/${funcionario.id}`} className="w-full sm:w-auto">
+                            <Button variant="outline" size="sm" className="w-full justify-center bg-background">
+                              <Eye className="mr-2 h-4 w-4" />
+                              Ver Histórico
+                            </Button>
+                          </Link>
+                          {funcionario.usuario_id && (
+                            <Button variant="outline" size="sm" className="w-full justify-center bg-background" onClick={() => handleAbrirAlterarSenha(funcionario)}>
+                              <Key className="mr-2 h-4 w-4" />
+                              Mudar Senha
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -322,6 +385,44 @@ function FuncionariosContent() {
               </Button>
               <Button onClick={handleAdicionarFuncionario} disabled={salvando}>
                 {salvando ? "Salvando..." : "Adicionar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Alterar Senha */}
+        <Dialog open={dialogAlterarSenha} onOpenChange={setDialogAlterarSenha}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Alterar Credenciais de Acesso</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-sm text-amber-600/90 leading-relaxed">
+                    <strong>Aviso Importante:</strong> Você está prestes a redefinir a senha do funcionário(a) <strong>{funcionarioSelecionado?.nome}</strong>. A conta será desconectada e a nova senha será exigida no próximo login. Lembre-se de informá-lo da mudança em seguida.
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 mt-4">
+                <Label htmlFor="novaSenhaFunc">Defina a Nova Senha</Label>
+                <Input
+                  id="novaSenhaFunc"
+                  type="password"
+                  placeholder="Mínimo de 6 caracteres"
+                  value={novaSenhaFuncionario}
+                  onChange={(e) => setNovaSenhaFuncionario(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogAlterarSenha(false)} disabled={alterandoSenha}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSalvarNovaSenha} disabled={alterandoSenha}>
+                {alterandoSenha ? "Salvando..." : "Salvar Nova Senha"}
               </Button>
             </DialogFooter>
           </DialogContent>

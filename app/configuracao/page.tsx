@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Settings, User, Store, Eye, EyeOff, Copy, Trash2, Plus, Code } from "lucide-react"
+import { Settings, User, Store, Eye, EyeOff, Copy, Trash2, Plus, Code, ShieldCheck, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function ConfiguracaoPage() {
@@ -21,7 +21,9 @@ export default function ConfiguracaoPage() {
     // Dados da Conta
     const [nomeUsuario, setNomeUsuario] = useState("")
     const [emailUsuario, setEmailUsuario] = useState("")
+    const [novaSenha, setNovaSenha] = useState("")
     const [msgConta, setMsgConta] = useState("")
+    const [msgSenha, setMsgSenha] = useState("")
 
     // Dados da Loja
     const [stores, setStores] = useState<any[]>([])
@@ -59,11 +61,30 @@ export default function ConfiguracaoPage() {
         setLoading(true)
         setMsgConta("")
         try {
-            const { data, error } = await supabase.auth.updateUser({ data: { nome: nomeUsuario } })
+            const { error } = await supabase.auth.updateUser({ data: { nome: nomeUsuario } })
             if (error) throw error
-            setMsgConta("Dados atualizados")
+            setMsgConta("Dados atualizados.")
         } catch (err: any) {
             setMsgConta(err.message || "Erro")
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function mudarSenha() {
+        if (!novaSenha || novaSenha.length < 6) {
+            setMsgSenha("A senha deve ter no mínimo 6 caracteres.")
+            return
+        }
+        setLoading(true)
+        setMsgSenha("")
+        try {
+            const { error } = await supabase.auth.updateUser({ password: novaSenha })
+            if (error) throw error
+            setMsgSenha("Senha alterada com sucesso!")
+            setNovaSenha("")
+        } catch (err: any) {
+            setMsgSenha(err.message || "Erro ao alterar a senha")
         } finally {
             setLoading(false)
         }
@@ -292,10 +313,14 @@ export default function ConfiguracaoPage() {
 
                 <div className="space-y-4 p-4 lg:space-y-6 lg:p-8">
                     <Tabs defaultValue="conta" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="conta">
                                 <User className="mr-2 h-4 w-4" />
                                 Minha Conta
+                            </TabsTrigger>
+                            <TabsTrigger value="seguranca">
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                                Segurança
                             </TabsTrigger>
                             <TabsTrigger value="loja">
                                 <Store className="mr-2 h-4 w-4" />
@@ -321,16 +346,55 @@ export default function ConfiguracaoPage() {
                                             <Input id="nomeUsuario" value={nomeUsuario} onChange={(e) => setNomeUsuario(e.target.value)} />
                                         </div>
 
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 pt-2">
                                             <Button onClick={saveConta} disabled={loading}>
-                                                Salvar
+                                                Salvar Alterações
                                             </Button>
                                             <Button variant="ghost" className="ml-auto" onClick={logout} disabled={loading}>
                                                 Logout
                                             </Button>
                                         </div>
 
-                                        {msgConta && <div className="p-2 rounded bg-muted/30">{msgConta}</div>}
+                                        {msgConta && <div className="p-3 text-sm rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">{msgConta}</div>}
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </TabsContent>
+
+                        {/* Tab Segurança */}
+                        <TabsContent value="seguranca" className="space-y-4 mt-4">
+                            <div className="max-w-2xl mx-auto">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Segurança e Autenticação</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-4 mb-4">
+                                            <div className="flex items-start gap-3">
+                                                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                                                <div className="text-sm text-amber-600/90 leading-relaxed">
+                                                    <strong>Atenção:</strong> Ao alterar sua senha de administrador, todas as sessões ativas (como navegadores ou celulares em uso) poderão ser desconectadas imediatamente. Assegure-se de usar uma combinação forte para garantir a segurança dos dados da loja.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="novaSenha">Definir Nova Senha</Label>
+                                            <Input id="novaSenha" type="password" placeholder="Digite no mínimo 6 caracteres" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} />
+                                            <p className="text-xs text-muted-foreground">Mínimo de 6 caracteres.</p>
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <Button onClick={mudarSenha} disabled={loading || !novaSenha || novaSenha.length < 6} className="w-full sm:w-auto">
+                                                Confirmar Nova Senha
+                                            </Button>
+                                        </div>
+
+                                        {msgSenha && (
+                                            <div className={`p-3 text-sm rounded border mt-2 ${msgSenha.includes("Erro") ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"}`}>
+                                                {msgSenha}
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </div>

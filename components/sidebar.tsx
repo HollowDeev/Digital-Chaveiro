@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { usePermissoes } from "@/lib/hooks/usePermissoes"
 import {
@@ -17,6 +18,7 @@ import {
   Sparkles,
   Settings,
   TrendingUp,
+  LogOut,
 } from "lucide-react"
 import ThemeToggle from "./theme-toggle"
 
@@ -36,7 +38,14 @@ const allNavItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { isDono, isGerente, isFuncionario, loading } = usePermissoes()
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
 
   // Filtra os itens baseado no nível de acesso
   const navItems = allNavItems.filter(item => {
@@ -94,8 +103,16 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border bg-gradient-to-br from-accent/5 to-transparent p-4">
-          <div className="flex items-center gap-2 rounded-xl bg-muted/50 px-3 py-2">
+        <div className="border-t border-sidebar-border bg-gradient-to-br from-accent/5 to-transparent p-4 flex flex-col gap-2">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full focus:outline-none"
+          >
+            <LogOut className="h-5 w-5" />
+            Sair do Sistema
+          </button>
+
+          <div className="flex items-center gap-2 rounded-xl bg-muted/50 px-3 py-2 mt-1">
             <div className="h-2 w-2 animate-pulse rounded-full bg-accent" />
             <p className="text-xs font-medium text-muted-foreground">Sistema Online</p>
           </div>

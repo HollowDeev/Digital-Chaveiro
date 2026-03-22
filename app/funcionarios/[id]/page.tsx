@@ -79,7 +79,7 @@ function ServicoRow({ s }: { s: any }) {
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold text-sm">{s.servico?.nome || "Serviço"}</p>
+              <p className="font-semibold text-sm truncate max-w-[140px] sm:max-w-[200px] md:max-w-xs">{s.servico?.nome || "Serviço"}</p>
               <StatusBadge status={s.status} />
               {hasProblemas && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
@@ -101,7 +101,7 @@ function ServicoRow({ s }: { s: any }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <div className="text-right">
               <p className="font-bold text-sm text-primary">{formatMoeda(s.servico?.preco || 0)}</p>
               <p className="text-xs text-muted-foreground">{s.pago ? "Pago" : "A pagar"}</p>
@@ -516,17 +516,17 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
           {/* ── Filtro de Período ── */}
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="p-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="flex shrink-0 items-center gap-2">
                   <Filter className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold text-primary">Período de Análise</span>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <div>
+                  <div className="flex-1 min-w-[130px]">
                     <Label className="text-xs mb-1">Data Início</Label>
                     <Input type="date" value={periodoInicio} onChange={e => setPeriodoInicio(e.target.value)} className="h-8 text-sm w-auto" />
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-[130px]">
                     <Label className="text-xs mb-1">Data Fim</Label>
                     <Input type="date" value={periodoFim} onChange={e => setPeriodoFim(e.target.value)} className="h-8 text-sm w-auto" />
                   </div>
@@ -623,11 +623,11 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
 
           {/* ── Tabs ── */}
           <Tabs defaultValue="vendas" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-4">
-              <TabsTrigger value="vendas" className="gap-1.5"><TrendingUp className="h-3.5 w-3.5" />Vendas</TabsTrigger>
-              <TabsTrigger value="comissao" className="gap-1.5"><Percent className="h-3.5 w-3.5" />Comissão</TabsTrigger>
-              <TabsTrigger value="desperdicio" className="gap-1.5"><PackageX className="h-3.5 w-3.5" />Desperdícios</TabsTrigger>
-              <TabsTrigger value="servicos" className="gap-1.5">
+            <TabsList className="flex w-full overflow-x-auto hide-scrollbar whitespace-nowrap justify-start lg:w-auto h-auto p-1 bg-muted rounded-lg">
+              <TabsTrigger value="vendas" className="gap-1.5 shrink-0"><TrendingUp className="h-3.5 w-3.5" />Vendas</TabsTrigger>
+              <TabsTrigger value="comissao" className="gap-1.5 shrink-0"><Percent className="h-3.5 w-3.5" />Comissão</TabsTrigger>
+              <TabsTrigger value="desperdicio" className="gap-1.5 shrink-0"><PackageX className="h-3.5 w-3.5" />Desperdícios</TabsTrigger>
+              <TabsTrigger value="servicos" className="gap-1.5 shrink-0">
                 <Wrench className="h-3.5 w-3.5" />Serviços
                 {servicosComProblemas.length > 0 && (
                   <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-bold">
@@ -880,7 +880,7 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
                   )}
                 </div>
 
-                <div className="flex gap-1 rounded-lg border p-1">
+                <div className="flex flex-wrap gap-1 rounded-lg border p-1 bg-card">
                   {[
                     { v: "todos",        l: "Todos" },
                     { v: "aberto",       l: "Abertos" },
@@ -910,8 +910,8 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
                   { label: "Em Aberto",      value: servicosAbertos.length,       color: "text-blue-600" },
                   { label: "Com Problemas",  value: servicosComProblemas.length,  color: "text-red-600" },
                 ].map(({ label, value, color }) => (
-                  <div key={label} className="rounded-lg border bg-card p-3 text-center">
-                    <p className={cn("text-2xl font-black", color)}>{value}</p>
+                  <div key={label} className="rounded-lg border bg-card p-2 sm:p-3 text-center">
+                    <p className={cn("text-xl sm:text-2xl font-black", color)}>{value}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
                   </div>
                 ))}
