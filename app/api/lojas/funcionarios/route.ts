@@ -82,7 +82,7 @@ export async function GET(req: Request) {
       // Buscar dados básicos do dono pela credencial
       const { data: credencialDono } = await supabaseAdmin
         .from('lojas_credenciais_funcionarios')
-        .select('nome, cargo')
+        .select('cargo')
         .eq('auth_user_id', loja.dono_id)
         .maybeSingle()
 
@@ -91,7 +91,7 @@ export async function GET(req: Request) {
         usuario_id: loja.dono_id,
         loja_id: lojaId,
         nivel_acesso: 'dono',
-        nome: credencialDono?.nome || null,
+        nome: null,
         cargo: credencialDono?.cargo || 'Dono',
         ativo: true,
         created_at: null,
@@ -106,7 +106,7 @@ export async function GET(req: Request) {
     if (arrayUsuarioIds.length > 0) {
       const { data } = await supabaseAdmin
         .from('lojas_credenciais_funcionarios')
-        .select('auth_user_id, nome, username, cargo, salario, data_admissao, ativo')
+        .select('auth_user_id, username, cargo, salario, data_admissao, ativo')
         .in('auth_user_id', arrayUsuarioIds);
       credenciaisData = data || [];
     }
@@ -116,40 +116,41 @@ export async function GET(req: Request) {
       credenciaisMap.set(c.auth_user_id, c);
     });
 
-    // Encontrar usuários sem credenciais locais para fazer fallback
-    const missingUserIds = arrayUsuarioIds.filter(id => !credenciaisMap.has(id));
+    // Buscar nomes de TODOS os usuários no auth.admin (pois a tabela lojas_credenciais não tem "nome" e auth.users não responde para .from())
     const authUsersMap = new Map();
-
-    if (missingUserIds.length > 0) {
-      const { data: authUsersData } = await supabaseAdmin
-        .from('auth.users')
-        .select('id, email, raw_user_meta_data')
-        .in('id', missingUserIds);
-        
-      (authUsersData || []).forEach((u: any) => {
-        authUsersMap.set(u.id, u);
-      });
+    if (arrayUsuarioIds.length > 0) {
+      await Promise.all(
+        arrayUsuarioIds.map(async (id) => {
+          try {
+            const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(id);
+            if (authUser?.user) {
+              authUsersMap.set(id, authUser.user);
+            }
+          } catch {
+            // Silence
+          }
+        })
+      );
     }
 
     // Enriquecer cada membro sincronicamente
     const funcionariosEnriquecidos = (membros || []).map((membro: any) => {
       const credencial = credenciaisMap.get(membro.usuario_id);
+      const authUser = authUsersMap.get(membro.usuario_id);
+      
       let nomeAuth = null;
       let emailAuth = null;
 
-      if (!credencial) {
-        const authUser = authUsersMap.get(membro.usuario_id);
-        if (authUser) {
-          const meta = authUser.raw_user_meta_data || {};
-          nomeAuth = meta.nome || meta.full_name || meta.name || authUser.email?.split('@')[0] || null;
-          emailAuth = authUser.email || null;
-        }
+      if (authUser) {
+        const meta = authUser.user_metadata || {};
+        nomeAuth = meta.nome || meta.full_name || meta.name || authUser.email?.split('@')[0] || null;
+        emailAuth = authUser.email || null;
       }
 
       return {
         ...membro,
-        nome: credencial?.nome || nomeAuth || `Usuário ${String(membro.usuario_id).substring(0, 8)}`,
-        email: credencial?.username || emailAuth || '',
+        nome: membro.nome || nomeAuth || `Usuário ${String(membro.usuario_id).substring(0, 8)}`,
+        email: membro.email || credencial?.username || emailAuth || '',
         cargo: credencial?.cargo || (membro.nivel_acesso === 'dono' ? 'Dono' : membro.nivel_acesso === 'gerente' ? 'Gerente' : 'Funcionário'),
         salario: credencial?.salario || 0,
         data_admissao: credencial?.data_admissao || membro.created_at,
