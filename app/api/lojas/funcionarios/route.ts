@@ -96,17 +96,23 @@ export async function GET(req: Request) {
         ativo: true,
         created_at: null,
       })
+      todosUsuarioIds.add(loja.dono_id);
     }
 
     // Otimização: buscar todas as credenciais de uma vez
     const arrayUsuarioIds = Array.from(todosUsuarioIds);
-    const { data: credenciaisData } = await supabaseAdmin
-      .from('lojas_credenciais_funcionarios')
-      .select('auth_user_id, nome, username, cargo, salario, data_admissao, ativo')
-      .in('auth_user_id', arrayUsuarioIds);
+    let credenciaisData: any[] = [];
+    
+    if (arrayUsuarioIds.length > 0) {
+      const { data } = await supabaseAdmin
+        .from('lojas_credenciais_funcionarios')
+        .select('auth_user_id, nome, username, cargo, salario, data_admissao, ativo')
+        .in('auth_user_id', arrayUsuarioIds);
+      credenciaisData = data || [];
+    }
 
     const credenciaisMap = new Map();
-    (credenciaisData || []).forEach((c: any) => {
+    credenciaisData.forEach((c: any) => {
       credenciaisMap.set(c.auth_user_id, c);
     });
 
