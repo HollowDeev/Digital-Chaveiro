@@ -13,7 +13,7 @@ export async function GET(req: Request) {
 
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
   const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({ message: 'Variáveis de ambiente obrigatórias não configuradas' }, { status: 500 })
@@ -157,10 +157,11 @@ export async function GET(req: Request) {
       }
     });
 
+    console.log("[DEBUG API] ArrayUsuarioIds final:", arrayUsuarioIds);
     return NextResponse.json(funcionariosEnriquecidos, { status: 200 })
 
   } catch (err: any) {
-    console.error('Erro ao buscar funcionarios:', err)
+    console.error('[CRITICAL] Erro ao buscar funcionarios API:', err)
     return NextResponse.json({ message: err.message || 'Erro interno' }, { status: 500 })
   }
 }
