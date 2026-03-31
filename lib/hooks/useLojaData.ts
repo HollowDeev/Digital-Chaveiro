@@ -630,7 +630,24 @@ export function usePerdas(lojaId?: string, dataInicio?: Date, dataFim?: Date) {
       const { data, error: fetchError } = await query
 
       if (fetchError) throw fetchError
-      setPerdas(data || [])
+      
+      const perdasMapeadas = (data || []).map((p: any) => ({
+        id: p.id,
+        produtoId: p.produto_id,
+        produtoNome: p.produtos?.nome || p.produtos?.codigo_barras || "Produto removido",
+        quantidade: p.quantidade,
+        custoUnitario: p.custo_unitario,
+        custoTotal: p.custo_total,
+        funcionarioId: p.funcionario_id,
+        funcionarioNome: p.lojas_usuarios?.nome || "Não identificado",
+        categoriaId: p.categoria_id,
+        categoriaNome: p.categorias_perdas?.nome || "Sem categoria",
+        motivo: p.motivo,
+        data: p.data_perda,
+        observacoes: p.observacoes
+      }))
+
+      setPerdas(perdasMapeadas)
     } catch (err) {
       setError(err instanceof Error ? err : new Error("Erro ao buscar perdas"))
     } finally {

@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   try {
     // Buscar código com admin client (ignora RLS) para que qualquer usuário possa usar
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     let supabaseAdmin = supabase
     if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {

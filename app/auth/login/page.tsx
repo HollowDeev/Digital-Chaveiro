@@ -36,8 +36,15 @@ export default function LoginPage() {
       router.push("/auth/loja-opcoes")
       router.refresh()
     } catch (error: any) {
-      console.error("[v0] Erro no login:", error)
-      setErro(error.message || "Erro ao fazer login. Verifique suas credenciais.")
+      const mensagensErro: Record<string, string> = {
+        "Invalid login credentials": "Email ou senha incorretos. Verifique seus dados e tente novamente.",
+        "Email not confirmed": "Confirme seu email antes de acessar o sistema.",
+        "Too many requests": "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.",
+        "User not found": "Usuário não encontrado.",
+        "Invalid email or password": "Email ou senha incorretos.",
+      }
+      const mensagem = mensagensErro[error.message] || error.message || "Erro ao fazer login. Verifique suas credenciais."
+      setErro(mensagem)
     } finally {
       setLoading(false)
     }

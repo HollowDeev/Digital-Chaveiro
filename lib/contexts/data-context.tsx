@@ -180,15 +180,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const fetchFuncionarios = useCallback(async () => {
         if (!lojaId) return
-        const supabase = createClient()
         try {
-            const { data, error } = await supabase
-                .from("lojas_usuarios")
-                .select("*")
-                .eq("loja_id", lojaId)
-                .order("created_at", { ascending: false })
-
-            if (error) throw error
+            const res = await fetch(`/api/lojas/funcionarios?loja_id=${lojaId}`)
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}))
+                throw new Error(errorData.message || "Falha ao carregar funcionários")
+            }
+            const data = await res.json()
             setFuncionarios(
                 (data || []).map((fu: any) => ({
                     id: fu.id,

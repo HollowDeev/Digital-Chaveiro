@@ -24,7 +24,7 @@ import {
   Receipt,
 } from "lucide-react"
 
-const navItems = [
+const allNavItems = [
   { href: "/pdv", label: "PDV", icon: Receipt, funcionarioAcesso: true },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, funcionarioAcesso: false },
   { href: "/estoque", label: "Estoque", icon: Package, funcionarioAcesso: true },
@@ -40,15 +40,17 @@ const navItems = [
 export function MobileMenu() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
-  const { isFuncionario } = usePermissoes()
+  const { isAdmin, isFuncionario, loading } = usePermissoes()
 
   // Filtra os itens de navegação baseado no cargo
-  const filteredNavItems = navItems.filter(item => {
-    if (isFuncionario) {
-      return item.funcionarioAcesso
-    }
-    return true
-  })
+  // Durante o loading, não mostra nenhum item para evitar flash
+  const filteredNavItems = loading
+    ? []
+    : allNavItems.filter(item => {
+        if (isAdmin) return true
+        if (isFuncionario) return item.funcionarioAcesso
+        return false
+      })
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -80,7 +82,22 @@ export function MobileMenu() {
             <div className="mb-3 px-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Menu Principal</p>
             </div>
-            {filteredNavItems.map((item) => {
+
+            {/* Esqueleto durante o carregamento de permissões */}
+            {loading && (
+              <div className="space-y-1.5 px-1">
+                {[...Array(5)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-11 rounded-xl bg-muted/40 animate-pulse"
+                    style={{ opacity: 1 - i * 0.15 }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Itens de navegação reais — só aparecem após loading */}
+            {!loading && filteredNavItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
 
@@ -117,3 +134,4 @@ export function MobileMenu() {
     </Sheet>
   )
 }
+

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     }
 
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return NextResponse.json({ message: 'Service role key missing' }, { status: 500 })

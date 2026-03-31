@@ -39,7 +39,7 @@ const allNavItems = [
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { isDono, isGerente, isFuncionario, loading } = usePermissoes()
+  const { isAdmin, isFuncionario, loading } = usePermissoes()
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -48,12 +48,14 @@ export function Sidebar() {
   }
 
   // Filtra os itens baseado no nível de acesso
-  const navItems = allNavItems.filter(item => {
-    // Dono e gerente podem ver tudo
-    if (isDono || isGerente) return true
-    // Funcionário só vê itens permitidos
-    return item.funcionarioAcesso
-  })
+  // Durante o loading, não mostra nenhum item para evitar flash
+  const navItems = loading
+    ? []
+    : allNavItems.filter(item => {
+        if (isAdmin) return true
+        if (isFuncionario) return item.funcionarioAcesso
+        return false
+      })
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 border-r border-sidebar-border bg-sidebar md:block">
@@ -78,7 +80,22 @@ export function Sidebar() {
           <div className="mb-3 px-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Menu Principal</p>
           </div>
-          {navItems.map((item) => {
+
+          {/* Esqueleto durante o carregamento de permissões */}
+          {loading && (
+            <div className="space-y-1.5 px-1">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="h-11 rounded-xl bg-muted/40 animate-pulse"
+                  style={{ opacity: 1 - i * 0.15 }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Itens de navegação reais — só aparecem após loading */}
+          {!loading && navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
 
@@ -104,7 +121,7 @@ export function Sidebar() {
         </nav>
 
         <div className="border-t border-sidebar-border bg-gradient-to-br from-accent/5 to-transparent p-4 flex flex-col gap-2">
-          <button 
+          <button
             onClick={handleLogout}
             className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full focus:outline-none"
           >
@@ -121,3 +138,4 @@ export function Sidebar() {
     </aside>
   )
 }
+

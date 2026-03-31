@@ -12,11 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Settings, User, Store, Eye, EyeOff, Copy, Trash2, Plus, Code, ShieldCheck, AlertTriangle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { usePermissoes } from "@/lib/hooks/usePermissoes"
 
 export default function ConfiguracaoPage() {
     const supabase = createClient()
     const router = useRouter()
     const [loading, setLoading] = useState(false)
+    const { isAdmin, isFuncionario, loading: permissoesLoading } = usePermissoes()
 
     // Dados da Conta
     const [nomeUsuario, setNomeUsuario] = useState("")
@@ -312,20 +314,30 @@ export default function ConfiguracaoPage() {
                 />
 
                 <div className="space-y-4 p-4 lg:space-y-6 lg:p-8">
+                    {/* Enquanto verifica permissões, não renderiza as abas para evitar flash */}
+                    {permissoesLoading ? (
+                        <div className="flex items-center justify-center py-16">
+                            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        </div>
+                    ) : (
                     <Tabs defaultValue="conta" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
+                        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-1'}`}>
                             <TabsTrigger value="conta">
                                 <User className="mr-2 h-4 w-4" />
                                 Minha Conta
                             </TabsTrigger>
-                            <TabsTrigger value="seguranca">
-                                <ShieldCheck className="mr-2 h-4 w-4" />
-                                Segurança
-                            </TabsTrigger>
-                            <TabsTrigger value="loja">
-                                <Store className="mr-2 h-4 w-4" />
-                                Loja
-                            </TabsTrigger>
+                            {isAdmin && (
+                                <TabsTrigger value="seguranca">
+                                    <ShieldCheck className="mr-2 h-4 w-4" />
+                                    Segurança
+                                </TabsTrigger>
+                            )}
+                            {isAdmin && (
+                                <TabsTrigger value="loja">
+                                    <Store className="mr-2 h-4 w-4" />
+                                    Loja
+                                </TabsTrigger>
+                            )}
                         </TabsList>
 
                         {/* Tab Conta */}
@@ -642,6 +654,7 @@ export default function ConfiguracaoPage() {
                             )}
                         </TabsContent>
                     </Tabs>
+                    )}
                 </div>
             </main>
         </div>

@@ -141,7 +141,7 @@ export default function PDVPage() {
   const mostrarToast = useCallback((mensagem: string) => {
     setToastMessage(mensagem)
     setShowToast(true)
-    setTimeout(() => setShowToast(false), 2000)
+    setTimeout(() => setShowToast(false), 3000)
   }, [])
 
   // Função auxiliar para abrir janela de impressão
@@ -826,8 +826,8 @@ export default function PDVPage() {
           if (item.tipo === "servico") {
             const servico = servicos.find((s) => s.id === item.id)
             let dataPrevista = null
-            if (servico?.duracaoEstimada) {
-              dataPrevista = new Date(Date.now() + servico.duracaoEstimada * 60 * 1000).toISOString()
+            if (servico?.duracao) {
+              dataPrevista = new Date(Date.now() + servico.duracao * 60 * 1000).toISOString()
             }
             const { error: servicoError } = await supabase.from("servicos_realizados").insert({
               loja_id: lojaId,
@@ -964,8 +964,8 @@ export default function PDVPage() {
             const servico = servicos.find((s) => s.id === item.id)
             let dataPrevista = null
 
-            if (servico?.duracaoEstimada) {
-              const minutosEstimados = servico.duracaoEstimada
+            if (servico?.duracao) {
+              const minutosEstimados = servico.duracao
               dataPrevista = new Date(Date.now() + minutosEstimados * 60 * 1000).toISOString()
             }
 

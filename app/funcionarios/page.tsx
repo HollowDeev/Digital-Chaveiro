@@ -153,9 +153,9 @@ function FuncionariosContent() {
 
   const funcionariosFiltrados = funcionarios.filter(
     (f) =>
-      f.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      f.email.toLowerCase().includes(busca.toLowerCase()) ||
-      f.cargo.toLowerCase().includes(busca.toLowerCase()),
+      f.nome?.toLowerCase().includes(busca.toLowerCase()) ||
+      f.email?.toLowerCase().includes(busca.toLowerCase()) ||
+      f.cargo?.toLowerCase().includes(busca.toLowerCase()),
   )
 
   const funcionariosAtivos = funcionarios.filter((f) => f.ativo).length
@@ -279,8 +279,10 @@ function FuncionariosContent() {
                             R$ {funcionario.salario.toFixed(2)}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            Desde {new Date(funcionario.dataAdmissao).toLocaleDateString("pt-BR")}
-                          </p>
+                             {funcionario.dataAdmissao
+                               ? `Desde ${new Date(funcionario.dataAdmissao).toLocaleDateString("pt-BR")}`
+                               : ""}
+                           </p>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                           <Link href={`/funcionarios/${funcionario.id}`} className="w-full sm:w-auto">

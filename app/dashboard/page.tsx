@@ -41,8 +41,13 @@ function DashboardContent() {
 
   // Calcular métricas
   const hoje = new Date().toISOString().split("T")[0]
+  const mesAtual = new Date().toISOString().substring(0, 7) // ex: "2026-03"
+
   const vendasHoje = vendas.filter((v) => v.data.startsWith(hoje) && v.status === "concluida")
+  const vendasMes = vendas.filter((v) => v.data.startsWith(mesAtual) && v.status === "concluida")
+
   const receitaHoje = vendasHoje.reduce((acc, v) => acc + v.total, 0)
+  const receitaMes = vendasMes.reduce((acc, v) => acc + v.total, 0)
   const totalVendas = vendasHoje.length
 
   const produtosBaixoEstoque = produtos.filter((p) => p.estoque < 20 && p.ativo)
@@ -52,7 +57,7 @@ function DashboardContent() {
   const saldoCaixa = receitaHoje
 
   const metaMensal = 15000
-  const progressoMeta = (receitaHoje / metaMensal) * 100
+  const progressoMeta = Math.min((receitaMes / metaMensal) * 100, 100)
 
   const hojeDate = new Date()
   const semanaDepois = new Date(hojeDate)
@@ -147,15 +152,15 @@ function DashboardContent() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs lg:text-sm">
-                    <span className="text-muted-foreground">Progresso</span>
+                    <span className="text-muted-foreground">Progresso do mês</span>
                     <span className="font-medium">{progressoMeta.toFixed(1)}%</span>
                   </div>
                   <Progress value={progressoMeta} className="h-3" />
                 </div>
                 <div className="flex justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground lg:text-sm">Atual</p>
-                    <p className="text-lg font-bold text-foreground lg:text-xl">R$ {receitaHoje.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground lg:text-sm">Receita do mês</p>
+                    <p className="text-lg font-bold text-foreground lg:text-xl">R$ {receitaMes.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground lg:text-sm">Meta</p>

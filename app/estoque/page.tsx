@@ -104,6 +104,8 @@ export default function GestaoInventarioPage() {
   const [servicoEditando, setServicoEditando] = useState<any>(null)
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
+  const [salvando, setSalvando] = useState(false)
+  const [confirmExcluir, setConfirmExcluir] = useState<{ tipo: 'produto' | 'servico'; id: string; nome: string } | null>(null)
 
   // Refetch dos custos quando o dialog de custos é aberto
   useEffect(() => {
@@ -136,8 +138,6 @@ export default function GestaoInventarioPage() {
 
   // CRUD Produto
   const handleCriarProduto = async () => {
-    console.log("handleCriarProduto - lojaId:", lojaId, "nome:", novoProduto.nome, "codigo:", novoProduto.codigo)
-
     if (!lojaId) {
       mostrarToast("⚠️ Erro: Loja não identificada. Recarregue a página.")
       return
@@ -148,54 +148,49 @@ export default function GestaoInventarioPage() {
       return
     }
 
-    const supabase = createClient()
-    let imagemUrl = null
+    setSalvando(true)
+    try {
+      const supabase = createClient()
+      let imagemUrl = null
 
-    // Upload da imagem se existir
-    if (novoProduto.imagemFile) {
-      const fileExt = novoProduto.imagemFile.name.split('.').pop()
-      const fileName = `${lojaId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('produtos-imagens')
-        .upload(fileName, novoProduto.imagemFile, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (uploadError) {
-        console.error('Erro no upload:', uploadError)
-        mostrarToast("⚠️ Erro ao fazer upload da imagem, produto será criado sem imagem")
-      } else {
-        // Obter URL pública da imagem
-        const { data: urlData } = supabase.storage
+      if (novoProduto.imagemFile) {
+        const fileExt = novoProduto.imagemFile.name.split('.').pop()
+        const fileName = `${lojaId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('produtos-imagens')
-          .getPublicUrl(fileName)
-        imagemUrl = urlData.publicUrl
+          .upload(fileName, novoProduto.imagemFile, { cacheControl: '3600', upsert: false })
+        if (uploadError) {
+          mostrarToast("⚠️ Erro ao fazer upload da imagem, produto será criado sem imagem")
+        } else {
+          const { data: urlData } = supabase.storage.from('produtos-imagens').getPublicUrl(fileName)
+          imagemUrl = urlData.publicUrl
+        }
       }
-    }
 
-    const { error } = await supabase.from("produtos").insert({
-      loja_id: lojaId,
-      nome: novoProduto.nome,
-      codigo_barras: novoProduto.codigo,
-      categoria: novoProduto.categoria,
-      preco: Number.parseFloat(novoProduto.preco) || 0,
-      custo: Number.parseFloat(novoProduto.custoUnitario) || 0,
-      estoque: Number.parseInt(novoProduto.estoque) || 0,
-      descricao: novoProduto.descricao,
-      imagem_url: imagemUrl,
-      ativo: true
-    })
+      const { error } = await supabase.from("produtos").insert({
+        loja_id: lojaId,
+        nome: novoProduto.nome,
+        codigo_barras: novoProduto.codigo,
+        categoria: novoProduto.categoria,
+        preco: Number.parseFloat(novoProduto.preco) || 0,
+        custo: Number.parseFloat(novoProduto.custoUnitario) || 0,
+        estoque: Number.parseInt(novoProduto.estoque) || 0,
+        descricao: novoProduto.descricao,
+        imagem_url: imagemUrl,
+        ativo: true
+      })
 
-    if (error) {
-      mostrarToast("❌ Erro ao criar produto")
-      console.error(error)
-    } else {
-      mostrarToast("✅ Produto criado com sucesso!")
-      setDialogNovoProduto(false)
-      setNovoProduto({ nome: "", codigo: "", categoria: "", preco: "", custoUnitario: "", estoque: "0", descricao: "", imagemFile: null, imagemPreview: "" })
-      refetchProdutos()
+      if (error) {
+        mostrarToast("❌ Erro ao criar produto")
+        console.error(error)
+      } else {
+        mostrarToast("✅ Produto criado com sucesso!")
+        setDialogNovoProduto(false)
+        setNovoProduto({ nome: "", codigo: "", categoria: "", preco: "", custoUnitario: "", estoque: "0", descricao: "", imagemFile: null, imagemPreview: "" })
+        refetchProdutos()
+      }
+    } finally {
+      setSalvando(false)
     }
   }
 
@@ -223,18 +218,26 @@ export default function GestaoInventarioPage() {
     }
   }
 
-  const handleDeletarProduto = async (id: string) => {
-    if (!confirm("Tem certeza que deseja desativar este produto?")) return
+  const handleDeletarProduto = (id: string, nome: string) => {
+    setConfirmExcluir({ tipo: 'produto', id, nome })
+  }
 
+  const handleDeletarServico = (id: string, nome: string) => {
+    setConfirmExcluir({ tipo: 'servico', id, nome })
+  }
+
+  const handleConfirmarExclusao = async () => {
+    if (!confirmExcluir) return
     const supabase = createClient()
-    const { error } = await supabase.from("produtos").update({ ativo: false }).eq("id", id)
-
+    const { tipo, id } = confirmExcluir
+    const { error } = await supabase.from(tipo === 'produto' ? 'produtos' : 'servicos').update({ ativo: false }).eq('id', id)
     if (error) {
-      mostrarToast("❌ Erro ao desativar produto")
+      mostrarToast(`❌ Erro ao desativar ${tipo}`)
     } else {
-      mostrarToast("✅ Produto desativado!")
-      refetchProdutos()
+      mostrarToast(`✅ ${tipo === 'produto' ? 'Produto' : 'Serviço'} desativado!`)
+      tipo === 'produto' ? refetchProdutos() : refetchServicos()
     }
+    setConfirmExcluir(null)
   }
 
   // CRUD Serviço
@@ -383,19 +386,6 @@ export default function GestaoInventarioPage() {
     }
   }
 
-  const handleDeletarServico = async (id: string) => {
-    if (!confirm("Tem certeza que deseja desativar este serviço?")) return
-
-    const supabase = createClient()
-    const { error } = await supabase.from("servicos").update({ ativo: false }).eq("id", id)
-
-    if (error) {
-      mostrarToast("❌ Erro ao desativar serviço")
-    } else {
-      mostrarToast("✅ Serviço desativado!")
-      refetchServicos()
-    }
-  }
 
   // Entrada de Estoque
   const handleEntradaEstoque = async () => {
@@ -505,7 +495,6 @@ export default function GestaoInventarioPage() {
     )
   )
 
-  console.log("Total de serviços:", servicos.length, servicos) // Debug
   const servicosFiltrados = servicos.filter(s => {
     const matchBusca = s.nome.toLowerCase().includes(busca.toLowerCase()) ||
       s.codigo.toLowerCase().includes(busca.toLowerCase())
@@ -517,7 +506,7 @@ export default function GestaoInventarioPage() {
   const valorTotalEstoque = produtos.reduce((acc, p) => acc + p.custoUnitario * p.estoque, 0)
   const totalProdutos = produtos.filter(p => p.ativo).length
   const totalServicos = servicos.filter(s => s.ativo).length
-  const totalPerdas = perdas.reduce((acc, p) => acc + (p.custo_total || 0), 0)
+  const totalPerdas = perdas.reduce((acc, p) => acc + (p.custoTotal || 0), 0)
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -613,7 +602,7 @@ export default function GestaoInventarioPage() {
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Dialog open={dialogNovoProduto} onOpenChange={setDialogNovoProduto}>
                 <DialogTrigger asChild>
                   <Button className="gap-2">
@@ -1139,7 +1128,7 @@ export default function GestaoInventarioPage() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                onClick={() => handleDeletarProduto(produto.id)}
+                                onClick={() => handleDeletarProduto(produto.id, produto.nome)}
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
@@ -1219,7 +1208,7 @@ export default function GestaoInventarioPage() {
                             <Button
                               variant="outline"
                               size="icon"
-                              onClick={() => handleDeletarServico(servico.id)}
+                              onClick={() => handleDeletarServico(servico.id, servico.nome)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -1488,18 +1477,18 @@ export default function GestaoInventarioPage() {
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <h3 className="font-medium">{perda.produtos?.nome || 'Produto removido'}</h3>
+                              <h3 className="font-medium">{perda.produtoNome}</h3>
                               <p className="text-sm text-muted-foreground">
-                                {perda.quantidade} unidade(s) • {perda.categorias_perdas?.nome || perda.motivo}
+                                {perda.quantidade} unidade(s) • {perda.categoriaNome !== "Sem categoria" ? perda.categoriaNome : perda.motivo}
                               </p>
                             </div>
                             <Badge variant="destructive">
-                              R$ {(perda.custo_total || 0).toFixed(2)}
+                              R$ {(perda.custoTotal || 0).toFixed(2)}
                             </Badge>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            <p>Funcionário: {perda.lojas_usuarios?.nome || 'Não identificado'}</p>
-                            <p>Data: {new Date(perda.data_perda).toLocaleDateString('pt-BR')}</p>
+                            <p>Funcionário: {perda.funcionarioNome}</p>
+                            <p>Data: {new Date(perda.data).toLocaleDateString('pt-BR')}</p>
                             {perda.observacoes && <p>Obs: {perda.observacoes}</p>}
                           </div>
                         </div>
