@@ -658,12 +658,15 @@ export default function PDVPage() {
           preco: produto.preco,
           quantidade: 1,
           subtotal: produto.preco,
+          custoUnitario: produto.custoUnitario || 0,
+          custoTotal: produto.custoUnitario || 0,
         })
         mostrarToast(`✅ ${produto.nome} adicionado`)
       }
     } else {
       const servico = servicos.find(s => s.id === produtoId)
       if (servico) {
+        const custoServ = calcularSomaCustosServico(servico.id)
         adicionarItem({
           tipo: "servico",
           id: servico.id,
@@ -671,6 +674,8 @@ export default function PDVPage() {
           preco: servico.preco,
           quantidade: 1,
           subtotal: servico.preco,
+          custoUnitario: custoServ,
+          custoTotal: custoServ,
         })
         mostrarToast(`✅ ${servico.nome} adicionado`)
       }
@@ -798,6 +803,7 @@ export default function PDVPage() {
             funcionario_id: funcionarioUsuarioId,
             desconto: vendaAtual.desconto || 0,
             total: totalRegistroVenda,
+            custo_total: vendaAtual.itens.reduce((acc, item) => acc + (item.custoTotal || 0), 0),
             forma_pagamento: formaPagamento,
             tipo: "aprazo",
             status: "pendente",
@@ -816,6 +822,8 @@ export default function PDVPage() {
           quantidade: item.quantidade,
           preco_unitario: item.preco,
           subtotal: item.subtotal,
+          custo_unitario: item.custoUnitario || 0,
+          custo_total: item.custoTotal || 0,
         }))
 
         const { error: itensError } = await supabase.from("vendas_itens").insert(itensVenda)
@@ -935,6 +943,7 @@ export default function PDVPage() {
             funcionario_id: funcionarioUsuarioId,
             desconto: vendaAtual.desconto || 0,
             total: totalRegistroVenda,
+            custo_total: vendaAtual.itens.reduce((acc, item) => acc + (item.custoTotal || 0), 0),
             forma_pagamento: formaPagamento,
             tipo: "avista",
             status: "concluida",
@@ -953,6 +962,8 @@ export default function PDVPage() {
           quantidade: item.quantidade,
           preco_unitario: item.preco,
           subtotal: item.subtotal,
+          custo_unitario: item.custoUnitario || 0,
+          custo_total: item.custoTotal || 0,
         }))
 
         await supabase.from("vendas_itens").insert(itensVenda)

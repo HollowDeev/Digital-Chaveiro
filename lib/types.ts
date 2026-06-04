@@ -62,6 +62,8 @@ export type ItemVenda = {
   preco: number
   quantidade: number
   subtotal: number
+  custoUnitario?: number
+  custoTotal?: number
 }
 
 export type Venda = {
@@ -75,6 +77,7 @@ export type Venda = {
   subtotal: number
   desconto: number
   total: number
+  custoTotal?: number
   formaPagamento: "dinheiro" | "cartao_credito" | "cartao_debito" | "pix" | "outros"
   status: "concluida" | "cancelada"
 }

@@ -3,6 +3,8 @@
 # dependencies
 /node_modules
 
+redefinirsenha.js
+
 # next.js
 /.next/
 /out/

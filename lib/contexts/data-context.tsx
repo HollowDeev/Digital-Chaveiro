@@ -227,6 +227,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                     subtotal: v.subtotal || v.total,
                     desconto: v.desconto || 0,
                     total: v.total,
+                    custoTotal: v.custo_total || 0,
                     formaPagamento: v.forma_pagamento,
                     funcionarioId: v.funcionario_id,
                     status: v.status || "finalizada",

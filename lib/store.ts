@@ -170,6 +170,7 @@ export const useStore = create<Store>((set, get) => ({
           ...novosItens[index],
           quantidade,
           subtotal: novosItens[index].preco * quantidade,
+          custoTotal: (novosItens[index].custoUnitario || 0) * quantidade,
         }
       }
       return {
@@ -237,6 +238,7 @@ export const useStore = create<Store>((set, get) => ({
       subtotal,
       desconto: vendaAtual.desconto,
       total,
+      custoTotal: vendaAtual.itens.reduce((acc, item) => acc + (item.custoTotal || 0), 0),
       formaPagamento,
       status: "concluida",
     }

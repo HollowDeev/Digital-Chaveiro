@@ -409,8 +409,9 @@ function RelatoriosContent() {
   const totalPagar = contasPagar?.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0) || 0
   const totalReceberPendente = contasReceber?.filter((c) => c.status === "pendente").reduce((acc, c) => acc + c.valor, 0) || 0
   const totalPerdas = perdas?.reduce((acc, p) => acc + (p.custoTotal || 0), 0) || 0
+  const totalCMV = vendasConcluidas.reduce((acc, v) => acc + (v.custoTotal || 0), 0) // Custo de mercadoria/serviço vendida
 
-  const lucroLiquido = receitaTotal + receitasRecebidas - despesasPagas - totalPerdas
+  const lucroLiquido = (receitaTotal - totalCMV) + receitasRecebidas - despesasPagas - totalPerdas
 
   // Filtros para contas
   const contasPagarFiltradas = contasPagar?.filter(
@@ -674,6 +675,7 @@ function RelatoriosContent() {
                         <p className="text-xs text-muted-foreground lg:text-sm">Lucro Líquido</p>
                       </div>
                       <p className="mt-1 text-xl font-bold text-primary lg:text-2xl">R$ {lucroLiquido.toFixed(2)}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">CMV: R$ {totalCMV.toFixed(2)} deduzido</p>
                     </div>
                   </div>
                 </CardContent>

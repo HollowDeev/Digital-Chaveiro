@@ -275,6 +275,8 @@ export function useVendas(lojaId?: string) {
             clienteId: v.cliente_id,
             total: Number(v.total) || 0,
             desconto: Number(v.desconto) || 0,
+            custoTotal: Number(v.custo_total) || 0,
+            custo_total: Number(v.custo_total) || 0,
             formaPagamento: v.forma_pagamento as "dinheiro" | "credito" | "debito" | "pix",
             status: v.status as "concluida" | "cancelada" | "pendente",
             data: v.created_at,
@@ -524,6 +526,8 @@ export function useVendasComFiltro(lojaId?: string, dataInicio?: Date, dataFim?:
         subtotal: v.subtotal,
         desconto: v.desconto,
         total: v.total,
+        custoTotal: Number(v.custo_total) || 0,
+        custo_total: Number(v.custo_total) || 0,
         formaPagamento: v.forma_pagamento,
         status: v.status,
         dataVenda: v.data_venda,
@@ -535,6 +539,10 @@ export function useVendasComFiltro(lojaId?: string, dataInicio?: Date, dataFim?:
           quantidade: item.quantidade,
           precoUnitario: item.preco_unitario,
           subtotal: item.subtotal,
+          custoUnitario: Number(item.custo_unitario) || 0,
+          custo_unitario: Number(item.custo_unitario) || 0,
+          custoTotal: Number(item.custo_total) || 0,
+          custo_total: Number(item.custo_total) || 0,
         })),
       }))
 

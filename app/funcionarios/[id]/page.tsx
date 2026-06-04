@@ -326,7 +326,7 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
     // Vendas filtradas por período (funcionario_id = usuario_id)
     const { data: vendasData } = await supabase
       .from("vendas")
-      .select("id, total, desconto, forma_pagamento, status, created_at, tipo")
+      .select("id, total, custo_total, desconto, forma_pagamento, status, created_at, tipo")
       .eq("loja_id", lojaId)
       .eq("funcionario_id", usuarioId)
       .eq("status", "concluida")
@@ -402,10 +402,12 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
 
   // ── Computed ──
   const totalVendas      = vendas.reduce((a, v) => a + (v.total || 0), 0)
+  const totalCustos      = vendas.reduce((a, v) => a + (v.custo_total || v.custoTotal || 0), 0)
+  const lucroVendas      = Math.max(0, totalVendas - totalCustos)
   const qtdVendas        = vendas.length
-  const totalPerdas      = perdas.reduce((a, p) => a + (p.custo_total || 0), 0)
+  const totalPerdas      = perdas.reduce((a, p) => a + (p.custo_total || p.custoTotal || 0), 0)
   const qtdPerdas        = perdas.length
-  const comissaoValor    = totalVendas * (parseFloat(comissaoPct) || 0) / 100
+  const comissaoValor    = lucroVendas * (parseFloat(comissaoPct) || 0) / 100
 
   const vendasPorForma   = useMemo(() => {
     const map: Record<string, { qtd: number; total: number }> = {}
@@ -738,7 +740,7 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
                       <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 text-center">
                         <p className="text-sm text-muted-foreground">Comissão a Pagar</p>
                         <p className="text-4xl font-black text-primary">{formatMoeda(comissaoValor)}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{comissaoPct}% de {formatMoeda(totalVendas)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{comissaoPct}% de {formatMoeda(lucroVendas)} (Lucro)</p>
                       </div>
                     </div>
                   </div>
@@ -751,22 +753,25 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
                         <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma venda no período</p>
                       ) : (
                         <>
-                          <div className="grid grid-cols-3 text-xs font-semibold text-muted-foreground border-b pb-2 px-3">
-                            <span>Data</span><span className="text-center">Total</span><span className="text-right">Comissão</span>
+                          <div className="grid grid-cols-4 text-xs font-semibold text-muted-foreground border-b pb-2 px-3">
+                            <span>Data</span><span className="text-center">Venda</span><span className="text-center">Lucro</span><span className="text-right">Comissão</span>
                           </div>
                           {vendas.map(v => {
-                            const comissaoVenda = (v.total || 0) * (parseFloat(comissaoPct) || 0) / 100
+                            const lucro = Math.max(0, (v.total || 0) - (v.custo_total || v.custoTotal || 0))
+                            const comissaoVenda = lucro * (parseFloat(comissaoPct) || 0) / 100
                             return (
-                              <div key={v.id} className="grid grid-cols-3 items-center rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+                              <div key={v.id} className="grid grid-cols-4 items-center rounded-lg border bg-muted/20 px-3 py-2 text-sm">
                                 <span className="text-muted-foreground">{formatData(v.created_at)}</span>
-                                <span className="text-center font-medium text-emerald-600">{formatMoeda(v.total)}</span>
+                                <span className="text-center font-medium text-muted-foreground">{formatMoeda(v.total)}</span>
+                                <span className="text-center font-medium text-emerald-600">{formatMoeda(lucro)}</span>
                                 <span className="text-right font-bold text-primary">{formatMoeda(comissaoVenda)}</span>
                               </div>
                             )
                           })}
-                          <div className="grid grid-cols-3 rounded-lg border-2 border-primary/30 bg-primary/5 px-3 py-2 text-sm font-bold">
+                          <div className="grid grid-cols-4 rounded-lg border-2 border-primary/30 bg-primary/5 px-3 py-2 text-sm font-bold">
                             <span>TOTAL</span>
-                            <span className="text-center text-emerald-600">{formatMoeda(totalVendas)}</span>
+                            <span className="text-center text-muted-foreground">{formatMoeda(totalVendas)}</span>
+                            <span className="text-center text-emerald-600">{formatMoeda(lucroVendas)}</span>
                             <span className="text-right text-primary">{formatMoeda(comissaoValor)}</span>
                           </div>
                         </>
@@ -804,7 +809,7 @@ export default function FuncionarioPerfilPage({ params }: { params: { id: string
                               </p>
                               {p.observacoes && <p className="text-xs mt-1 text-muted-foreground italic">{p.observacoes}</p>}
                             </div>
-                            <p className="font-bold text-red-600 whitespace-nowrap">{formatMoeda(p.custo_total || 0)}</p>
+                            <p className="font-bold text-red-600 whitespace-nowrap">{formatMoeda(p.custo_total || p.custoTotal || 0)}</p>
                           </div>
                         </div>
                       ))
